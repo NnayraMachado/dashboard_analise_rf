@@ -1,6 +1,10 @@
 streamlit
+folium
+streamlit-folium
 pandas
 numpy
+altair
 plotly
-folium
-openai
+requests
+matplotlib
+wordcloud
