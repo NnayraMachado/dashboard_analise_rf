@@ -1,0 +1,117 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "nome": "Colatina",
+        "info": "Informações sobre Colatina"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -40.6269,
+          -19.5322
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nome": "Baixo Guandu",
+        "info": "Informações sobre Baixo Guandu"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -41.0106,
+          -19.5214
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nome": "Conceição da Barra",
+        "info": "Informações sobre Conceição da Barra"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -39.7279,
+          -18.5861
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nome": "Linhares",
+        "info": "Informações sobre Linhares"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -40.0722,
+          -19.3947
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nome": "Marilândia",
+        "info": "Informações sobre Marilândia"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -40.5458,
+          -19.4123
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nome": "Povoação",
+        "info": "Informações sobre Povoação"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -39.8139,
+          -19.4005
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nome": "Regência",
+        "info": "Informações sobre Regência"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -39.8536,
+          -19.6195
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nome": "São Mateus",
+        "info": "Informações sobre São Mateus"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -39.8562,
+          -18.7191
+        ]
+      }
+    }
+  ]
+}
