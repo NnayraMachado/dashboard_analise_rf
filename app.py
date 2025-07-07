@@ -755,11 +755,13 @@ elif analysis_type == "Análise de Categoria Única":
         if st.button("Perguntar à IA", key="perguntar_ia_unica"):
             try:
                 import openai
-                openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
+                client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
                 sample = df.sample(min(len(df), 250)).to_dict(orient="records")
                 user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
-                completion = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
+                completion = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": user_question}],
+                temperature=0
                 )
                 ia_resp = completion.choices[0].message.content
             except Exception as e:
@@ -881,12 +883,14 @@ elif analysis_type == "Análise Cruzada de Questões":
         pergunta_livre = st.text_input("Pergunte algo para a IA sobre o cruzamento:", key="pergunta_livre_cruzada")
         if st.button("Perguntar à IA", key="perguntar_ia_cruzada"):
             try:
-                import openai
-                openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
-                sample = df_cross.sample(min(len(df_cross), 250)).to_dict(orient="records")
-                user_question = f"Considere esta amostra do cruzamento de duas colunas: {sample}\nPergunta: {pergunta_livre}"
-                completion = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
+               import openai
+                client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+                sample = df.sample(min(len(df), 250)).to_dict(orient="records")
+                user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
+                completion = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": user_question}],
+                temperature=0
                 )
                 ia_resp = completion.choices[0].message.content
             except Exception as e:
@@ -1107,14 +1111,16 @@ elif analysis_type == "Visualização por Mapa":
         pergunta_livre = st.text_input("Pergunte algo para a IA sobre os municípios ou o mapa:", key="pergunta_livre_mapa")
         if st.button("Perguntar à IA", key="perguntar_ia_mapa"):
             try:
-                import openai
-                openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
-                sample = df_map_data.sample(min(len(df_map_data), 80)).to_dict(orient="records")
-                user_question = f"Considere esta amostra dos dados de municípios: {sample}\nPergunta: {pergunta_livre}"
-                completion = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
-                )
-                ia_resp = completion.choices[0].message.content
+               import openai
+               client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+               sample = df.sample(min(len(df), 250)).to_dict(orient="records")
+               user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
+               completion = client.chat.completions.create(
+               model="gpt-3.5-turbo",
+               messages=[{"role": "user", "content": user_question}],
+               temperature=0
+               )
+               ia_resp = completion.choices[0].message.content
             except Exception as e:
                 ia_resp = f"Não foi possível usar IA externa (API): {e}"
             st.session_state.historico_ia_mapa.append({"pergunta": pergunta_livre, "resposta": ia_resp})
@@ -1270,14 +1276,16 @@ elif analysis_type == "Análise de Sentimento por Tema":
                     pergunta_livre = st.text_input("Pergunte algo para a IA sobre os sentimentos ou as citações:", key="pergunta_livre_sent")
                     if st.button("Perguntar à IA", key="perguntar_ia_sent"):
                         try:
-                            import openai
-                            openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
-                            sample = current_df_sentiment[[selected_sentiment_topic_code, justification_col_name]].dropna().sample(min(40, len(current_df_sentiment))).to_dict(orient="records")
-                            user_question = f"Considere esta amostra dos sentimentos e justificativas: {sample}\nPergunta: {pergunta_livre}"
-                            completion = openai.ChatCompletion.create(
-                                model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
+                           import openai
+                           client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+                           sample = df.sample(min(len(df), 250)).to_dict(orient="records")
+                           user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
+                           completion = client.chat.completions.create(
+                           model="gpt-3.5-turbo",
+                           messages=[{"role": "user", "content": user_question}],
+                           temperature=0
                             )
-                            ia_resp = completion.choices[0].message.content
+                           ia_resp = completion.choices[0].message.content
                         except Exception as e:
                             ia_resp = f"Não foi possível usar IA externa (API): {e}"
                         st.session_state.historico_ia_sentimentos.append({"pergunta": pergunta_livre, "resposta": ia_resp})
@@ -1379,14 +1387,16 @@ elif analysis_type == "Análise de Lacunas (Antes vs. Depois)":
                     pergunta_livre = st.text_input("Pergunte algo à IA sobre essa lacuna:", key="pergunta_livre_gap")
                     if st.button("Perguntar à IA", key="perguntar_ia_gap"):
                         try:
-                            import openai
-                            openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
-                            sample = df_gap.sample(min(40, len(df_gap))).to_dict(orient="records")
-                            user_question = f"Considere esta amostra dos dados antes/depois: {sample}\nPergunta: {pergunta_livre}"
-                            completion = openai.ChatCompletion.create(
-                                model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
-                            )
-                            ia_resp = completion.choices[0].message.content
+                          import openai
+                          client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+                          sample = df.sample(min(len(df), 250)).to_dict(orient="records")
+                          user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
+                          completion = client.chat.completions.create(
+                          model="gpt-3.5-turbo",
+                          messages=[{"role": "user", "content": user_question}],
+                          temperature=0
+                           )
+                         ia_resp = completion.choices[0].message.content
                         except Exception as e:
                             ia_resp = f"Não foi possível usar IA externa (API): {e}"
                         st.session_state.historico_ia_gap.append({"pergunta": pergunta_livre, "resposta": ia_resp})
@@ -1513,11 +1523,13 @@ elif analysis_type == "Análise de Vulnerabilidade":
                     if st.button("Perguntar à IA", key="perguntar_ia_vuln"):
                         try:
                             import openai
-                            openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
-                            sample = df_vulnerability_analysis.sample(min(40, len(df_vulnerability_analysis))).to_dict(orient="records")
-                            user_question = f"Considere esta amostra da análise de vulnerabilidade: {sample}\nPergunta: {pergunta_livre}"
-                            completion = openai.ChatCompletion.create(
-                                model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
+                            client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+                            sample = df.sample(min(len(df), 250)).to_dict(orient="records")
+                            user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
+                            completion = client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[{"role": "user", "content": user_question}],
+                            temperature=0
                             )
                             ia_resp = completion.choices[0].message.content
                         except Exception as e:
