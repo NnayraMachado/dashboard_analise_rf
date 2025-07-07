@@ -8,3 +8,5 @@ plotly
 requests
 matplotlib
 wordcloud
+XlsxWriter
+
