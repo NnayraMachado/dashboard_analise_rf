@@ -759,9 +759,7 @@ elif analysis_type == "Análise de Categoria Única":
                 sample = df.sample(min(len(df), 250)).to_dict(orient="records")
                 user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
                 completion = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": user_question}],
-                temperature=0
+                    model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
                 )
                 ia_resp = completion.choices[0].message.content
             except Exception as e:
@@ -792,7 +790,7 @@ elif analysis_type == "Análise Cruzada de Questões":
 
         if col1_cross and col2_cross:
             temp_df_cross = None
-
+            
             # Checa onde estão as colunas e faz merge se necessário
             if col1_cross in df.columns and col2_cross in df.columns:
                 temp_df_cross = df[[col1_cross, col2_cross]]
@@ -803,7 +801,7 @@ elif analysis_type == "Análise Cruzada de Questões":
                     temp_df_cross = df[[col1_cross, 'ID']].merge(df_sentiment_filtered_by_main[[col2_cross, 'ID']], on='ID', how='inner')
                 elif col1_cross in df_sentiment_filtered_by_main.columns and col2_cross in df.columns:
                     temp_df_cross = df_sentiment_filtered_by_main[[col1_cross, 'ID']].merge(df[[col2_cross, 'ID']], on='ID', how='inner')
-
+            
             if temp_df_cross is not None:
                 df_cross = temp_df_cross.dropna()
             else:
@@ -817,26 +815,14 @@ elif analysis_type == "Análise Cruzada de Questões":
 
                 col_cross_display, col_cross_chart = st.columns(2)
                 with col_cross_display:
-                    cross_display_mode = st.radio(
-                        "Exibir como:",
-                        ("Contagem (Número de Entrevistados)", "Porcentagem por Linha", "Porcentagem por Coluna", "Porcentagem Total"),
-                        index=0, key="cross_display_mode"
-                    )
+                    cross_display_mode = st.radio("Exibir como:", ("Contagem (Número de Entrevistados)", "Porcentagem por Linha", "Porcentagem por Coluna", "Porcentagem Total"), index=0, key="cross_display_mode")
                 with col_cross_chart:
-                    chart_type_cross = st.radio(
-                        "Tipo de Gráfico Cruzado:",
-                        ("Barras Empilhadas", "Barras Agrupadas"),
-                        index=0, key="chart_type_cross"
-                    )
+                    chart_type_cross = st.radio("Tipo de Gráfico Cruzado:", ("Barras Empilhadas", "Barras Agrupadas"), index=0, key="chart_type_cross")
 
-                if cross_display_mode == "Contagem (Número de Entrevistados)":
-                    crosstab_table = pd.crosstab(df_cross[col1_cross], df_cross[col2_cross])
-                elif cross_display_mode == "Porcentagem por Linha":
-                    crosstab_table = pd.crosstab(df_cross[col1_cross], df_cross[col2_cross], normalize='index').mul(100).round(2)
-                elif cross_display_mode == "Porcentagem por Coluna":
-                    crosstab_table = pd.crosstab(df_cross[col1_cross], df_cross[col2_cross], normalize='columns').mul(100).round(2)
-                elif cross_display_mode == "Porcentagem Total":
-                    crosstab_table = pd.crosstab(df_cross[col1_cross], df_cross[col2_cross], normalize='all').mul(100).round(2)
+                if cross_display_mode == "Contagem (Número de Entrevistados)": crosstab_table = pd.crosstab(df_cross[col1_cross], df_cross[col2_cross])
+                elif cross_display_mode == "Porcentagem por Linha": crosstab_table = pd.crosstab(df_cross[col1_cross], df_cross[col2_cross], normalize='index').mul(100).round(2)
+                elif cross_display_mode == "Porcentagem por Coluna": crosstab_table = pd.crosstab(df_cross[col1_cross], df_cross[col2_cross], normalize='columns').mul(100).round(2)
+                elif cross_display_mode == "Porcentagem Total": crosstab_table = pd.crosstab(df_cross[col1_cross], df_cross[col2_cross], normalize='all').mul(100).round(2)
 
                 st.dataframe(crosstab_table, use_container_width=True)
 
@@ -853,23 +839,14 @@ elif analysis_type == "Análise Cruzada de Questões":
                 plot_df = df_cross.groupby([col1_cross, col2_cross]).size().reset_index(name='Contagem')
 
                 if chart_type_cross == "Barras Empilhadas":
-                    fig_cross = px.bar(
-                        plot_df,
-                        x=col1_cross, y='Contagem', color=col2_cross,
-                        title=f'Distribuição de {question_labels.get(col1_cross, col1_cross)} por {question_labels.get(col2_cross, col2_cross)} (Empilhado)',
-                        text_auto=True
-                    )
-                    fig_cross.update_layout(xaxis={'categoryorder': 'total descending'})
+                    fig_cross = px.bar(plot_df, x=col1_cross, y='Contagem', color=col2_cross, title=f'Distribuição de {question_labels.get(col1_cross, col1_cross)} por {question_labels.get(col2_cross, col2_cross)} (Empilhado)', text_auto=True)
+                    fig_cross.update_layout(xaxis={'categoryorder':'total descending'})
                     st.plotly_chart(fig_cross, use_container_width=True)
                 elif chart_type_cross == "Barras Agrupadas":
-                    fig_cross = px.bar(
-                        plot_df,
-                        x=col1_cross, y='Contagem', color=col2_cross, barmode='group',
-                        title=f'Distribuição de {question_labels.get(col1_cross, col1_cross)} por {question_labels.get(col2_cross, col2_cross)} (Agrupado)',
-                        text_auto=True
-                    )
-                    fig_cross.update_layout(xaxis={'categoryorder': 'total descending'})
+                    fig_cross = px.bar(plot_df, x=col1_cross, y='Contagem', color=col2_cross, barmode='group', title=f'Distribuição de {question_labels.get(col1_cross, col1_cross)} por {question_labels.get(col2_cross, col2_cross)} (Agrupado)', text_auto=True)
+                    fig_cross.update_layout(xaxis={'categoryorder':'total descending'})
                     st.plotly_chart(fig_cross, use_container_width=True)
+                
         else:
             st.info("Por favor, selecione duas questões para realizar a análise cruzada.")
     else:
@@ -906,12 +883,10 @@ elif analysis_type == "Análise Cruzada de Questões":
             try:
                 import openai
                 client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
-                sample = df.sample(min(len(df), 250)).to_dict(orient="records")
-                user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
+                sample = df_cross.sample(min(len(df_cross), 250)).to_dict(orient="records")
+                user_question = f"Considere esta amostra do cruzamento de duas colunas: {sample}\nPergunta: {pergunta_livre}"
                 completion = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": "user", "content": user_question}],
-                    temperature=0
+                    model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
                 )
                 ia_resp = completion.choices[0].message.content
             except Exception as e:
@@ -925,7 +900,6 @@ elif analysis_type == "Análise Cruzada de Questões":
                     st.markdown(f"**Pergunta:** {h['pergunta']}")
                     st.markdown(h["resposta"])
                     st.markdown("---")
-
 
 # BLOCO 3: Visualização por Mapa 
 elif analysis_type == "Visualização por Mapa":
@@ -1133,16 +1107,14 @@ elif analysis_type == "Visualização por Mapa":
         pergunta_livre = st.text_input("Pergunte algo para a IA sobre os municípios ou o mapa:", key="pergunta_livre_mapa")
         if st.button("Perguntar à IA", key="perguntar_ia_mapa"):
             try:
-               import openai
-               client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
-               sample = df.sample(min(len(df), 250)).to_dict(orient="records")
-               user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
-               completion = client.chat.completions.create(
-               model="gpt-3.5-turbo",
-               messages=[{"role": "user", "content": user_question}],
-               temperature=0
-               )
-               ia_resp = completion.choices[0].message.content
+                import openai
+                client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+                sample = df_map_data.sample(min(len(df_map_data), 80)).to_dict(orient="records")
+                user_question = f"Considere esta amostra dos dados de municípios: {sample}\nPergunta: {pergunta_livre}"
+                completion = client.chat.completions.create(
+                    model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
+                )
+                ia_resp = completion.choices[0].message.content
             except Exception as e:
                 ia_resp = f"Não foi possível usar IA externa (API): {e}"
             st.session_state.historico_ia_mapa.append({"pergunta": pergunta_livre, "resposta": ia_resp})
@@ -1298,16 +1270,14 @@ elif analysis_type == "Análise de Sentimento por Tema":
                     pergunta_livre = st.text_input("Pergunte algo para a IA sobre os sentimentos ou as citações:", key="pergunta_livre_sent")
                     if st.button("Perguntar à IA", key="perguntar_ia_sent"):
                         try:
-                           import openai
-                           client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
-                           sample = df.sample(min(len(df), 250)).to_dict(orient="records")
-                           user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
-                           completion = client.chat.completions.create(
-                           model="gpt-3.5-turbo",
-                           messages=[{"role": "user", "content": user_question}],
-                           temperature=0
+                            import openai
+                            client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+                            sample = current_df_sentiment[[selected_sentiment_topic_code, justification_col_name]].dropna().sample(min(40, len(current_df_sentiment))).to_dict(orient="records")
+                            user_question = f"Considere esta amostra dos sentimentos e justificativas: {sample}\nPergunta: {pergunta_livre}"
+                            completion = client.chat.completions.create(
+                                model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
                             )
-                           ia_resp = completion.choices[0].message.content
+                            ia_resp = completion.choices[0].message.content
                         except Exception as e:
                             ia_resp = f"Não foi possível usar IA externa (API): {e}"
                         st.session_state.historico_ia_sentimentos.append({"pergunta": pergunta_livre, "resposta": ia_resp})
@@ -1409,16 +1379,14 @@ elif analysis_type == "Análise de Lacunas (Antes vs. Depois)":
                     pergunta_livre = st.text_input("Pergunte algo à IA sobre essa lacuna:", key="pergunta_livre_gap")
                     if st.button("Perguntar à IA", key="perguntar_ia_gap"):
                         try:
-                          import openai
-                          client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
-                          sample = df.sample(min(len(df), 250)).to_dict(orient="records")
-                          user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
-                          completion = client.chat.completions.create(
-                          model="gpt-3.5-turbo",
-                          messages=[{"role": "user", "content": user_question}],
-                          temperature=0
-                           )
-                         ia_resp = completion.choices[0].message.content
+                            import openai
+                            client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+                            sample = df_gap.sample(min(40, len(df_gap))).to_dict(orient="records")
+                            user_question = f"Considere esta amostra dos dados antes/depois: {sample}\nPergunta: {pergunta_livre}"
+                            completion = client.chat.completions.create(
+                                model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
+                            )
+                            ia_resp = completion.choices[0].message.content
                         except Exception as e:
                             ia_resp = f"Não foi possível usar IA externa (API): {e}"
                         st.session_state.historico_ia_gap.append({"pergunta": pergunta_livre, "resposta": ia_resp})
@@ -1546,12 +1514,10 @@ elif analysis_type == "Análise de Vulnerabilidade":
                         try:
                             import openai
                             client = openai.OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
-                            sample = df.sample(min(len(df), 250)).to_dict(orient="records")
-                            user_question = f"Considere esta amostra dos dados: {sample}\nPergunta: {pergunta_livre}"
+                            sample = df_vulnerability_analysis.sample(min(40, len(df_vulnerability_analysis))).to_dict(orient="records")
+                            user_question = f"Considere esta amostra da análise de vulnerabilidade: {sample}\nPergunta: {pergunta_livre}"
                             completion = client.chat.completions.create(
-                            model="gpt-3.5-turbo",
-                            messages=[{"role": "user", "content": user_question}],
-                            temperature=0
+                                model="gpt-3.5-turbo", messages=[{"role": "user", "content": user_question}], temperature=0
                             )
                             ia_resp = completion.choices[0].message.content
                         except Exception as e:
