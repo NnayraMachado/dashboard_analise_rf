@@ -55,7 +55,7 @@ st.markdown("""
     }
     </style>
     <div class="footer">
-        © 2024 ADAI. Desenvolvido por Gi-ADAI. 
+        © 2025 ADAI. Desenvolvido por Gi-ADAI. 
     </div>
 """, unsafe_allow_html=True)
 
