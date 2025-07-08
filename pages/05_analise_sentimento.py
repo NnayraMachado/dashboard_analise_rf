@@ -2,15 +2,17 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+# Para a Word Cloud
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+
 # Checa se o DataFrame principal foi carregado
 from utils.session import ensure_session_data
 ensure_session_data()
 
-    
 df_sentiment_filtered_by_main = st.session_state['df_sentiment_filtered_by_main']
 
 st.header("Análise de Sentimento por Tema")
-
 st.markdown("Explore os sentimentos e emoções expressos nas respostas de texto livre para diferentes tópicos.")
 
 current_df_sentiment = df_sentiment_filtered_by_main
@@ -94,22 +96,31 @@ else:
                 fig_sentiment.update_layout(xaxis_title="", yaxis_title="Quantidade")
             st.plotly_chart(fig_sentiment, use_container_width=True)
 
-            # --- Nuvem de palavras (opcional)
+
+
+            # --- Nuvem de palavras (Word Cloud)
+            # Detecta a coluna de justificativa associada, mesmo para outras categorias!
             original_col_prefix = selected_sentiment_topic_code.rsplit('_', 2)[0]
             justification_col_name = f"{original_col_prefix}_Sentimento_Justificativa"
-            mostrar_nuvem = st.checkbox("Mostrar nuvem de palavras dos trechos chave (experimental)")
+            st.markdown("---")
+            st.markdown("### 🌥️ Visualize a nuvem de palavras dos trechos chave")
+            mostrar_nuvem = st.checkbox(
+                "Mostrar nuvem de palavras dos trechos chave",
+                key=f"mostrar_nuvem_{selected_sentiment_topic_code}"
+            )
             if mostrar_nuvem:
-                try:
-                    from wordcloud import WordCloud
-                    import matplotlib.pyplot as plt
-                    textos = current_df_sentiment[justification_col_name].dropna().str.cat(sep=' ')
-                    wordcloud = WordCloud(width=800, height=300, background_color='white').generate(textos)
-                    fig_wc, ax = plt.subplots(figsize=(10,3))
-                    ax.imshow(wordcloud, interpolation='bilinear')
-                    ax.axis('off')
-                    st.pyplot(fig_wc)
-                except Exception as e:
-                    st.warning(f"Não foi possível gerar a nuvem de palavras: {e}")
+                if justification_col_name in current_df_sentiment.columns:
+                    textos = current_df_sentiment[justification_col_name].dropna().astype(str).str.cat(sep=' ')
+                    if textos.strip():
+                        wordcloud = WordCloud(width=800, height=300, background_color='white', colormap='tab10').generate(textos)
+                        fig_wc, ax = plt.subplots(figsize=(10,3))
+                        ax.imshow(wordcloud, interpolation='bilinear')
+                        ax.axis('off')
+                        st.pyplot(fig_wc)
+                    else:
+                        st.info("Não há textos suficientes para gerar a nuvem de palavras.")
+                else:
+                    st.info("Não há coluna de trechos chave para esta seleção.")
 
             # --- Exemplos de Trechos Chave + download
             if justification_col_name in current_df_sentiment.columns:
@@ -122,5 +133,4 @@ else:
             else:
                 st.info("Não há coluna de trechos chave para esta seleção.")
 
-            # --- Análise automática da IA
             st.markdown("---")
