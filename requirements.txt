@@ -9,4 +9,4 @@ requests
 matplotlib
 wordcloud
 XlsxWriter
-
+google-generative-ai
