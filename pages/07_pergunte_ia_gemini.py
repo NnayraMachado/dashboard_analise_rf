@@ -1,156 +1,165 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import google.generativeai as genai
+import re
 
 # Checa se o DataFrame principal foi carregado
 from utils.session import ensure_session_data
 ensure_session_data()
-
     
 df = st.session_state['df']
-st.header("Visualização por Mapa")
+st.header("💬 Pergunte à IA (Gemini)")
 
-st.info("Este mapa exibe a distribuição espacial dos municípios onde há respondentes. O tamanho do círculo indica o número de respondentes.")
 st.markdown("---")
 
-# Posição central do ES
-center = [-19.5, -40.5]
+# Configure API Gemini
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# --- Cria DataFrame de municípios e total de respondentes
-df_map_data = df.groupby('ADAI_CT4').size().reset_index(name='Total Respondentes')
-df_map_data = df_map_data.rename(columns={'ADAI_CT4': 'nome'}) 
+# --- MAPA DE SINÔNIMOS/COLUNAS PARA BUSCA AUTOMÁTICA ---
+mapa_colunas = {
+    "ID7": ["raça", "cor", "negro", "pardo", "branco", "indígena"],
+    "ADAI_ID8": ["gênero", "sexo", "homem", "mulher", "masculino", "feminino"],
+    "ADAI_CT4": ["território", "localidade", "município", "colatina", "baixo guandu"],
+    "ID10": ["deficiência", "pcd"],
+    "PCT0": ["povo tradicional", "comunidade tradicional", "quilombola", "povo", "indígena"],
+    "Idade": ["idade", "faixa etária", "jovem", "idoso", "criança"],
+    "ID11": ["escolaridade", "formação"],
+    "ADAI_ID12": ["profissão", "trabalho", "ocupação"],
+    "ID12": ["religião", "prática religiosa"],
+    # Acrescente outros campos do seu interesse
+}
 
-# Merge com lat/lon
-lat_lon_df = pd.read_csv('data/municipios_es_lat_lon.csv', sep=';', encoding='utf-8')
-df_map_data = df_map_data.merge(lat_lon_df, on='nome', how='left')
+# Funções auxiliares do seu painel:
+def extrair_filtros(pergunta, mapa):
+    """Procura sinônimos na pergunta e mapeia para colunas"""
+    filtros = {}
+    for campo, palavras in mapa.items():
+        for palavra in palavras:
+            if re.search(rf'\b{palavra}\b', pergunta, re.IGNORECASE):
+                filtros[campo] = palavra
+                break
+    return filtros
 
-# Total de homens/mulheres por município
-sexo_counts = (
-    df[df['ADAI_ID8'].isin(['Homem', 'Mulher'])]
-    .groupby(['ADAI_CT4', 'ADAI_ID8']).size().unstack(fill_value=0)
-    .reset_index().rename(columns={'ADAI_CT4': 'nome'})
-)
-df_map_data = df_map_data.merge(sexo_counts, on='nome', how='left')
+def aplicar_filtros(df, filtros):
+    """Aplica os filtros no DataFrame"""
+    df_filtrado = df.copy()
+    for coluna, valor in filtros.items():
+        # Tratamento especial para colunas numéricas
+        if pd.api.types.is_numeric_dtype(df_filtrado[coluna]):
+            m = re.search(r'(maior|acima|mais de) (\d+)', valor)
+            if m:
+                df_filtrado = df_filtrado[df_filtrado[coluna] > int(m.group(2))]
+            else:
+                m = re.search(r'(menor|abaixo|menos de) (\d+)', valor)
+                if m:
+                    df_filtrado = df_filtrado[df_filtrado[coluna] < int(m.group(2))]
+        else:
+            df_filtrado = df_filtrado[df_filtrado[coluna].astype(str).str.contains(valor, case=False, na=False)]
+    return df_filtrado
 
-df_map_data['Pct_Homens'] = (df_map_data.get('Homem', 0) / df_map_data['Total Respondentes'] * 100).round(1)
-df_map_data['Pct_Mulheres'] = (df_map_data.get('Mulher', 0) / df_map_data['Total Respondentes'] * 100).round(1)
+def explicar_para_ia(pergunta, resultado):
+    """Chama a IA Gemini para explicar, usando apenas o resultado filtrado"""
+    contexto_metodologico = """
+NOTA METODOLÓGICA:
+Este dashboard utiliza dados primários e secundários coletados pela ADAI nos territórios 9, 10, 13, 14, 15 e 16 do Espírito Santo, referentes ao impacto do rompimento da barragem de Fundão (Samarco, Vale, BHP Billiton). Foram entrevistadas 624 famílias (1.794 pessoas) em setembro/outubro de 2023, usando questionário estruturado, a partir de amostragem representativa e snowball. Os resultados devem ser interpretados no contexto da pesquisa social, considerando limitações próprias do método e em fase contínua de atualização e análise.
+"""
+    # Limita a amostra para IA não travar, mas ainda representativa
+    if len(resultado) > 80:
+        sample_df = resultado.sample(80, random_state=42)
+    else:
+        sample_df = resultado
+    prompt = (
+    f"{contexto_metodologico}\n\n"
+    f"Pergunta do usuário: \"{pergunta}\"\n"
+    f"Resultado filtrado (colunas e até 80 linhas):\n{sample_df.to_string(index=False)}\n\n"
+    f"Explique para um público leigo o que esse resultado representa, **sempre considerando a nota metodológica acima**. Destaque padrões, diferenças ou curiosidades, mas NÃO invente nenhum valor que não esteja nos dados apresentados. NÃO faça generalizações fora do contexto do desastre da barragem de Fundão/ADAI."
+    )
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    resposta = model.generate_content(prompt)
+    return resposta.text
 
-# Profissão mais comum por município
-profissao_pred = (
-    df.groupby('ADAI_CT4')['ADAI_ID12']
-    .agg(lambda x: x.value_counts().idxmax() if not x.value_counts().empty else None)
-    .reset_index().rename(columns={'ADAI_CT4': 'nome', 'ADAI_ID12': 'Profissao_Predominante'})
-)
-df_map_data = df_map_data.merge(profissao_pred, on='nome', how='left')
+# Inicializa o histórico de chat
+if "chat_history_gemini" not in st.session_state:
+    st.session_state.chat_history_gemini = []
 
-# Escolaridade mais comum
-escolaridade_pred = (
-    df.groupby('ADAI_CT4')['ID11']
-    .agg(lambda x: x.value_counts().idxmax() if not x.value_counts().empty else None)
-    .reset_index().rename(columns={'ADAI_CT4': 'nome', 'ID11': 'Escolaridade_Predominante'})
-)
-df_map_data = df_map_data.merge(escolaridade_pred, on='nome', how='left')
+MAX_INPUT_CHARS = 400  # limite de caracteres para o input do usuário
 
-# Religião mais comum
-religiao_pred = (
-    df.groupby('ADAI_CT4')['ID12']
-    .agg(lambda x: x.value_counts().idxmax() if not x.value_counts().empty else None)
-    .reset_index().rename(columns={'ADAI_CT4': 'nome', 'ID12': 'Religiao_Predominante'})
-)
-df_map_data = df_map_data.merge(religiao_pred, on='nome', how='left')
+# Renderiza o histórico (perguntas e respostas)
+for item in st.session_state.chat_history_gemini:
+    with st.chat_message("user"):
+        st.markdown(item["pergunta"])
+    with st.chat_message("assistant"):
+        st.markdown(item["resposta"])
+        if "tabela" in item and item["tabela"] is not None:
+            st.dataframe(item["tabela"])
+        if "grafico" in item and item["grafico"] is not None:
+            st.plotly_chart(item["grafico"], use_container_width=True)
 
-# Povo tradicional: % de respondentes por município
-povo_pct = (
-    df[df['PCT0'] == 'Sim']
-    .groupby('ADAI_CT4').size() / df.groupby('ADAI_CT4').size()
-).mul(100).round(1).reset_index(name='Pct_Povo_Tradicional')
-povo_pct = povo_pct.rename(columns={'ADAI_CT4': 'nome'})
-df_map_data = df_map_data.merge(povo_pct, on='nome', how='left')
+# Orientações para o usuário (insira aqui)
+st.subheader("📝 Orientações para Perguntar à IA Gemini")
 
-# Deficiência: % de respondentes com deficiência
-if 'Deficiencia' in df.columns:
-    def_pct = (
-        df[df['Deficiencia'] == 'Sim']
-        .groupby('ADAI_CT4').size() / df.groupby('ADAI_CT4').size()
-    ).mul(100).round(1).reset_index(name='Pct_Deficiencia')
-    def_pct = def_pct.rename(columns={'ADAI_CT4': 'nome'})
-    df_map_data = df_map_data.merge(def_pct, on='nome', how='left')
-else:
-    df_map_data['Pct_Deficiencia'] = None
+st.info("""
+**Como fazer perguntas para a IA?**
 
-# Raça/cor: mais comum por município
-raca_pred = (
-    df.groupby('ADAI_CT4')['ID7']
-    .agg(lambda x: x.value_counts().idxmax() if not x.value_counts().empty else None)
-    .reset_index().rename(columns={'ADAI_CT4': 'nome', 'ID7': 'Raca_Predominante'})
-)
-df_map_data = df_map_data.merge(raca_pred, on='nome', how='left')
+- Escreva dúvidas ou pedidos de informação de forma clara e objetiva.
+- Exemplos:
+    - _"Quantas mulheres negras moram em Colatina?"_
+    - _"Qual a distribuição de idade entre os quilombolas?"_
+    - _"Quantos respondentes se declararam indígenas em Baixo Guandu?"_
+    - _"Como está a escolaridade dos moradores do território 14?"_
 
-# --- Remover colunas duplicadas de 'nome'
-df_map_data = df_map_data.loc[:, ~df_map_data.columns.duplicated()]
+**Dicas importantes:**
+- Utilize palavras-chave como: gênero, idade, raça/cor, município, escolaridade, trabalho, religião, etc.
+- Seja específico sobre quem ou o quê você quer saber (ex: “em Baixo Guandu”, “entre os jovens”, “famílias chefiadas por mulheres”).
+- Combine critérios, se desejar, mas evite perguntas muito amplas ou vagas.
+- Limite-se a perguntas simples, de preferência com até dois filtros por vez, para melhores resultados.
+- Caso a resposta pareça estranha, incompleta ou confusa, tente reformular sua pergunta de forma mais direta.
 
-# Set dos municípios com respostas
-municipios_com_respostas = set(df_map_data['nome'])
+---
 
-# Função melhorada para popup: mostra mais detalhes e emojis
-def make_popup(row):
-    return folium.Popup(f"""
-        <b>{row['nome']}</b><br>
-        👤 <b>Total respondentes:</b> {row['Total Respondentes']}<br>
-        👩 <b>Mulheres:</b> {row.get('Mulher', 0)} ({row.get('Pct_Mulheres', 0)}%)<br>
-        👨 <b>Homens:</b> {row.get('Homem', 0)} ({row.get('Pct_Homens', 0)}%)<br>
-        🧑‍🦱 <b>Raça predominante:</b> {row.get('Raca_Predominante', 'n/d')}<br>
-        🎓 <b>Escolaridade predominante:</b> {row.get('Escolaridade_Predominante', 'n/d')}<br>
-        💼 <b>Profissão predominante:</b> {row.get('Profissao_Predominante', 'n/d')}<br>
-        🙏 <b>Religião predominante:</b> {row.get('Religiao_Predominante', 'n/d')}<br>
-    """, max_width=350)
+:warning: **Atenção!**
+Esta função de perguntas automáticas para a IA **ainda está em desenvolvimento** e pode apresentar limitações, respostas incompletas ou erros de interpretação.  
+**Recomenda-se sempre revisar as respostas da IA** e, em caso de dúvida, consultar a equipe técnica ou especialistas do projeto antes de tomar decisões com base nessas respostas.
+""")
 
-# --- Mapa Folium dos limites do ES
-# (Aqui, estados_geojson deve ser carregado anteriormente!)
-# m = folium.Map(location=center, zoom_start=7, tiles='cartodbpositron')
-# for feature in estados_geojson['features']:
-#     ...
+# Entrada do chat
+user_input = st.chat_input("Digite sua pergunta para a IA...", max_chars=MAX_INPUT_CHARS, key="input_gemini")
+if user_input:
+    with st.spinner("Buscando resposta..."):
+        filtros = extrair_filtros(user_input, mapa_colunas)
+        if not filtros:
+            resposta = "❗ Não consegui identificar filtros na pergunta. Tente usar termos como 'mulher', 'negro', 'Colatina', 'idade', etc."
+            tabela = None
+            grafico = None
+        else:
+            resultado = aplicar_filtros(df, filtros)
+            resposta = f"Total de registros encontrados: **{len(resultado)}**"
+            tabela = resultado if len(resultado) > 0 else None
 
-# --- Mapa Plotly dos pontos
-if 'lat' in df_map_data.columns and 'lon' in df_map_data.columns and not df_map_data[['lat', 'lon']].isna().all().all():
-    try:
-        lat_center = df_map_data["lat"].mean()
-        lon_center = df_map_data["lon"].mean()
-        fig_map = px.scatter_mapbox(
-            df_map_data,
-            lat="lat",
-            lon="lon",
-            size="Total Respondentes",
-            color="Total Respondentes",
-            color_continuous_scale=px.colors.sequential.Viridis,
-            hover_name="nome",
-            hover_data={
-                "Total Respondentes": True,
-                "Mulher": True,
-                "Homem": True,
-                "Pct_Mulheres": True,
-                "Pct_Homens": True,
-                "Profissao_Predominante": True,
-                "Escolaridade_Predominante": True,
-                "Religiao_Predominante": True,
-                "Raca_Predominante": True,
-                "lat": False, "lon": False
-            },
-            mapbox_style="carto-positron",
-            zoom=6,
-            center={"lat": lat_center, "lon": lon_center},
-            title="Total de Respondentes por Município (Mapa de Pontos)"
-        )
-        fig_map.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, height=600)
-        st.plotly_chart(fig_map, use_container_width=True)
-    except Exception as e:
-        st.error(f"Erro ao gerar o mapa Plotly: {e}")
-else:
-    st.warning("Não há coordenadas (lat/lon) dos municípios no DataFrame para plotar pontos no mapa. Exibindo apenas a tabela.")
+            # Exemplo de gráfico automático (pode adaptar para outros tipos!)
+            if len(filtros) == 1:  # só um filtro: exibe distribuição por gênero, raça ou município se possível
+                coluna = list(filtros.keys())[0]
+                if coluna in resultado.columns and resultado[coluna].nunique() < 10:
+                    grafico = px.histogram(resultado, x=coluna, title=f"Distribuição de {coluna}", text_auto=True)
+                else:
+                    grafico = None
+            else:
+                grafico = None
 
-# --- Exibe tabela e download
-st.markdown("#### Detalhes por Município (Mapa)")
-st.dataframe(df_map_data[['nome', 'Total Respondentes', 'Homem', 'Mulher', 'Pct_Mulheres', 'Profissao_Predominante',
-                     'Escolaridade_Predominante', 'Religiao_Predominante', 'Pct_Povo_Tradicional',
-                   ]], use_container_width=True)
-st.download_button("Baixar Tabela Municípios", df_map_data.to_csv(index=False), file_name="municipios_respondentes.csv")
+            # IA só chama se houver registros
+            if len(resultado) > 0:
+                with st.spinner("IA explicando o resultado..."):
+                    explicacao = explicar_para_ia(user_input, resultado)
+                    resposta += "\n\n#### 🧠 Explicação da IA:\n" + explicacao
+            else:
+                resposta += "\n\nNenhum registro encontrado para os filtros aplicados."
+        
+        # Salva no histórico
+        st.session_state.chat_history_gemini.append({
+            "pergunta": user_input,
+            "resposta": resposta,
+            "tabela": tabela,
+            "grafico": grafico
+        })
+        st.rerun()
