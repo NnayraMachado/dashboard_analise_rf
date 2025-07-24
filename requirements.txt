@@ -10,4 +10,4 @@ matplotlib
 wordcloud
 XlsxWriter
 google-generativeai
-
+nltk
