@@ -1,0 +1,170 @@
+/* styles.css */
+@import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css");
+
+/* Estilo geral (já deveria vir do app.py se for multi-página, mas repetido para segurança aqui) */
+body {
+    font-family: 'Arial', sans-serif;
+    color: #333333;
+    background-color: #f0f2f6;
+}
+
+/* Títulos h1, h2, h3 - Consistente com outras páginas */
+h1, h2, h3 {
+    color: #24405a;
+    font-weight: bold;
+}
+h1 {
+    font-size: 2.8em;
+    text-align: center;
+    margin-bottom: 0.5em;
+    border-bottom: 2px solid #2a9d8f;
+    padding-bottom: 10px;
+}
+h2 {
+    font-size: 1.8em;
+    margin-top: 1.5em;
+}
+h3 {
+    font-size: 1.5em;
+    margin-top: 1.5em;
+}
+
+/* Sidebar (se houver) - Consistente com outras páginas */
+section[data-testid="stSidebar"] {
+    background: #f0f2f6;
+    padding-top: 20px;
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
+/* Imagens */
+img {
+    border-radius: 12px !important;
+    box-shadow: 0 4px 24px rgba(40,40,60,0.08);
+    object-fit: cover;
+}
+
+/* Bloco de citação (fala_personagem) - Se for usado nesta página */
+.blockquote {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196F3;
+    padding: 0.7em 1em;
+    margin-bottom: 1em;
+    margin-top: 1em;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.blockquote span {
+    color: #2196F3;
+    font-size: 1.5em;
+    vertical-align: middle;
+    margin-right: 5px;
+}
+.blockquote i {
+    font-size: 1.1em;
+    color: #333;
+}
+
+/* Título de cada história dentro da aba - Se for usado nesta página */
+.story-title {
+    font-size: 2em;
+    font-weight: 700;
+    color: #264653;
+    margin-bottom: 0.5em;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 5px;
+}
+
+/* Frase destaque da história - Se for usado nesta página */
+.frase-destaque {
+    font-size: 1.3em;
+    color: #556677;
+    font-style: italic;
+    margin-bottom: 1.5em;
+    display: block;
+}
+
+/* Expander do município - Se for usado nesta página */
+.stExpander {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.stExpander > div > div > button {
+    font-weight: bold;
+    color: #007bff;
+}
+
+/* Classe para a introdução (específica para essa página) */
+.intro-section {
+    background-color: #f8fff7;
+    padding: 2em;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    margin-bottom: 3em;
+    border: 1px solid #e0f2f1;
+}
+.intro-section p {
+    font-size: 1.1em;
+    line-height: 1.6;
+    color: #388e3c;
+    text-align: justify;
+}
+.intro-section i {
+    font-size: 2em;
+    color: #388e3c;
+    margin-bottom: 0.5em;
+    text-align: center;
+    display: block;
+}
+
+/* Estilo para links no rodapé (se for usado nesta página) */
+.footer-links a {
+    color: #007bff;
+    text-decoration: none;
+}
+.footer-links a:hover {
+    text-decoration: underline;
+}
+
+/* Estilos específicos para a página de Análise de Categoria Única */
+
+/* Título principal da página de análise */
+.stApp h1 {
+    color: #264653; /* Cor consistente com os títulos principais */
+    font-size: 2.5em;
+    text-align: center;
+    margin-bottom: 0.5em;
+}
+
+/* Subcabeçalhos (H2, H3) da página de análise */
+.stApp h2 {
+    color: #24405a;
+    font-size: 1.8em;
+    margin-top: 1.5em;
+}
+.stApp h3 {
+    color: #264653; /* Cor mais escura para subseções */
+    font-size: 1.5em;
+    margin-top: 1.5em;
+}
+
+/* Para as notas informativas e de dicas */
+.st-emotion-cache-1f1d6xpt { /* Esta classe pode mudar ligeiramente, verifique no inspetor */
+    background-color: #e0f7fa !important; /* Um azul claro para infos */
+    border-left: 5px solid #00bcd4 !important;
+}
+
+/* Para mensagens de warning */
+.st-emotion-cache-1c7v05h { /* Esta classe também pode mudar */
+    background-color: #fffde7 !important; /* Um amarelo claro para warnings */
+    border-left: 5px solid #ffc107 !important;
+}
+
+/* Estilo para os selectbox/radio buttons */
+div[data-testid="stForm"] > div > label {
+    font-weight: bold;
+    color: #264653;
+}
