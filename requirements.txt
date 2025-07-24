@@ -11,3 +11,4 @@ wordcloud
 XlsxWriter
 google-generativeai
 nltk
+unidecode
