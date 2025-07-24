@@ -386,16 +386,20 @@ with tab2: # --- ABA 2: MAPA DE DENSIDADE DEMOGRÁFICA ---
     try:
         with open(geojson_file_path, encoding='utf-8') as f:
             geojson_data = json.load(f)
-        
-        # === APLICAR PADRONIZAÇÃO NO GEOJSON AQUI ===
-        if geojson_data:
+            
+       # === APLICAR PADRONIZAÇÃO NO GEOJSON AQUI (suporte a vários nomes de campo) ===
+        if geojson_data and 'features' in geojson_data:
+            possible_fields = ['NM_MUNICIP', 'NM_MUNICIPIO', 'NM_MUN', 'name']
             for feat in geojson_data['features']:
-                if 'NM_MUNICIP' in feat['properties']: # Assumindo que o nome original está em NM_MUNICIP
-                    feat['properties']['NM_MUNICIP_PADRAO'] = padroniza_nome(feat['properties']['NM_MUNICIP'])
-                else: # Se não for 'NM_MUNICIP', tenta 'name' ou outro padrão, ou deixa como None para debug
-                    feat['properties']['NM_MUNICIP_PADRAO'] = padroniza_nome(feat['properties'].get('name', 'N/A_NOME')) # Tenta 'name' ou 'N/A'
-            # st.write("Exemplo de propriedades padronizadas no GeoJSON (primeiro feature):", geojson_data['features'][0]['properties']) # Debug para ver se padronizou
-
+                # tenta cada campo até encontrar o nome do município
+                raw_name = None
+                for fld in possible_fields:
+                    if fld in feat['properties']:
+                        raw_name = feat['properties'][fld]
+                        break
+                # se não achar, marca como string vazia para evitar N/A_NOME
+                feat['properties']['NM_MUNICIP_PADRAO'] = padroniza_nome(raw_name) if raw_name else ""
+                
     except FileNotFoundError:
         st.error(f"Erro: Arquivo GeoJSON '{geojson_file_path}' não encontrado. O mapa de densidade não pode ser gerado.")
     except json.JSONDecodeError:
