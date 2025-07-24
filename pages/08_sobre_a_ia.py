@@ -1,56 +1,62 @@
 import streamlit as st
 
-st.header("🤖 Sobre a Inteligência Artificial do Painel")
+st.header("Sobre a Inteligência Artificial do Painel")
 
 st.markdown("""
-Este painel utiliza **Inteligência Artificial (IA)** para apoiar a análise, interpretação e comunicação dos dados de duas formas principais:
+Este painel utiliza **Inteligência Artificial** para ampliar a análise, interpretação e comunicação dos dados — tornando o acesso à informação mais ágil, inclusivo e seguro.
 """)
 
-st.markdown("---")
+st.divider()
 
-# 1. Principais formas de uso da IA
-col1, col2 = st.columns(2)
+tab1, tab2 = st.tabs(["Análise de Dados Estruturados", "Análise de Textos Abertos"])
 
-with col1:
-    st.subheader("1️⃣ Interpretação de Dados Estruturados")
+with tab1:
+    st.subheader("Como funciona?")
     st.markdown("""
-    - IA Gemini (Google) interpreta tabelas de dados quantitativos e categóricos.
-    - Explica resultados (ex: _"Quantas mulheres negras há em Colatina?"_), **sempre considerando o contexto metodológico**.
-    - Destaca padrões, curiosidades, limitações e fornece explicações acessíveis.
-    - Contexto metodológico e limitações sempre considerados nas respostas.
+- A IA (Gemini, Google) interpreta tabelas e variáveis quantitativas/categóricas do questionário.
+- Explica resultados como:  
+  > *“Quantas mulheres negras há em Colatina?”*
+- Traduz padrões, tendências e limitações em linguagem acessível.
+- Sempre contextualiza com as premissas metodológicas da pesquisa.
     """)
+    st.info("Ajuda a identificar padrões, vulnerabilidades, relações entre variáveis e pontos de atenção nos dados.")
 
-with col2:
-    st.subheader("2️⃣ Análise de Respostas Abertas")
+with tab2:
+    st.subheader("Como funciona?")
     st.markdown("""
-    - Processamento automatizado de respostas de texto livre.
-    - IA identifica **sentimentos gerais, emoções e trechos-chave**.
-    - Classifica sentimentos: “Muito Negativo”, “Negativo”, “Neutro”, “Positivo”, “Muito Positivo”.
-    - Destaca exemplos de opiniões e sentimentos dos participantes.
+- Leitura automatizada de respostas livres (opiniões e relatos).
+- Identifica emoções, sentimentos predominantes e temas recorrentes.
+- Classifica opiniões (de “Muito Negativo” a “Muito Positivo”).
+- Destaca frases-chave e depoimentos ilustrativos.
     """)
+    st.info("Oferece panorama do sentimento coletivo e evidencia nuances das experiências relatadas.")
 
-st.markdown("---")
+st.divider()
 
-st.subheader("⚙️ Como funciona a IA aqui?")
+st.subheader("Princípios de Uso e Privacidade")
 st.markdown("""
-- Utiliza modelos avançados (Gemini, Google Generative AI) para interpretação e resumo dos dados.
-- Cada consulta inclui o contexto metodológico do levantamento e parâmetros relevantes.
-- **Nenhum dado pessoal identificável é exibido ou utilizado para treinamento posterior.**
+- Os resultados são sempre apresentados com referência ao contexto metodológico.
+- **Privacidade:** Nenhum dado pessoal identificável é exibido ou usado para treinar a IA.
+- O processamento visa contextualizar os números com impacto humano – cada estatística representa vidas, histórias e desafios reais.
 """)
 
-st.info("🔎 **Dica:** O prompt enviado à IA inclui o resumo metodológico, detalhes da amostra e contexto do desastre.")
+st.divider()
 
-st.markdown("---")
-
+st.subheader("Limitações e Recomendações")
 st.warning("""
-**Limitações e Boas Práticas**
-- IA é uma ferramenta auxiliar — revise sempre em temas sensíveis, polêmicos ou jurídicos.
-- Em caso de dúvidas ou dados ambíguos, priorize avaliação por especialistas humanos.
-- Qualidade das análises depende da clareza e representatividade dos dados.
-- As respostas da IA **não substituem análises estatísticas aprofundadas** ou revisão por pesquisadores.
+- A IA é um apoio à análise – recomenda-se revisão crítica, principalmente em temas sensíveis.
+- Em caso de dúvidas, ambiguidades ou ausência de dados, consulte a equipe de pesquisa.
+- As conclusões referem-se à amostra pesquisada; evite generalizações absolutas.
+- Não substitui análises estatísticas avançadas ou validação por especialistas humanos.
 """)
 
-st.markdown("---")
+st.divider()
 
-st.info("💬 Para dúvidas ou sugestões sobre a IA do painel, entre em contato com a equipe técnica responsável pelo projeto.")
+st.markdown("""
+**Exemplos de perguntas para a IA:**
+- “Qual a faixa etária predominante nos territórios pesquisados?”
+- “O que dizem os relatos sobre saúde mental após o desastre?”
+- “Como a escolaridade se relaciona com o gênero?”
+""")
 
+st.info("Dúvidas ou sugestões sobre a IA? Entre em contato com a equipe técnica responsável pelo projeto.")
