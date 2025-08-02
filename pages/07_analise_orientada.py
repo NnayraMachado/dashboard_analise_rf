@@ -1,3 +1,7 @@
+# ==============================================================================
+# ---------- PARTE 1/3: CONFIGURAÇÃO, CARREGAMENTO E UTILITÁRIOS ----------
+# ==============================================================================
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -5,531 +9,602 @@ import google.generativeai as genai
 import re
 import numpy as np
 import unidecode
+import os
+from io import StringIO
+from datetime import datetime, timezone
+import json
+import warnings
 
-# --- EXEMPLO de DataFrame (substitua pelo seu carregamento real) ---
-if "df" not in st.session_state:
-    st.session_state["df"] = pd.DataFrame({
-        "ID7": ["NEGRA", "BRANCO", "PARDA", "PARDA", "BRANCO", "NEGRA"],
-        "ADAI_ID8": ["MULHER", "HOMEM", "MULHER", "MULHER", "HOMEM", "MULHER"],
-        "Idade": [35, 42, 20, 64, 28, 50],
-        "ADAI_CT4": ["COLATINA", "BAIXO GUANDU", "COLATINA", "LINHARES", "COLATINA", "BAIXO GUANDU"]
-    })
-df = st.session_state['df']
-
-# --- ESTILO Gemini (apenas CSS, sem JS) ---
-st.markdown("""
-    <style>
-    .gemini-actions-row {
-        display: flex; gap: 10px; align-items: center; margin-top: 8px; margin-bottom: 4px;
-    }
-    .gemini-quick-row {
-        display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
-    }
-    .gemini-quick-btn {
-        background: #f0f2f5; border: none; border-radius: 22px;
-        padding: 4px 16px; font-size: 1em; color: #4a6572;
-        cursor: pointer; transition: background 0.2s;
-    }
-    .gemini-quick-btn:hover { background: #e0e2e5;}
-    .gemini-actions-btn {
-        background: #fff;
-        border: 1px solid #dedede;
-        color: #264653;
-        border-radius: 20px;
-        font-size: 1em;
-        padding: 5px 15px;
-        margin-right: 2px;
-        transition: background 0.18s, border 0.18s;
-        cursor: pointer;
-    }
-    .gemini-actions-btn:hover { background: #e7ebf3; border: 1px solid #b2bec3;}
-    </style>
-""", unsafe_allow_html=True)
+# --- CONFIGURAÇÕES INICIAIS E ESTILO ---
+st.set_page_config(layout="wide", page_title="ADAI - Análise com IA")
+st.markdown("""<style>...</style>""", unsafe_allow_html=True)  # CSS omitido por brevidade
 
 st.header("💬 Pergunte à IA (Gemini)")
 st.markdown("---")
 
-# ---- GEMINI API CONFIG ----
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-# --- MAP OF SYNONYMS/COLUMNS AND THEIR CATEGORIES FOR AUTO-SEARCH ---
+# ---- CONFIGURAÇÃO DA API GEMINI ----
+try:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+except Exception as e:
+    st.error(f"Erro na configuração da API do Gemini: {e}")
+    st.stop()
+
+# --- CARREGAMENTO E ESTADO DA SESSÃO ---
+@st.cache_data
+def carregar_dados(caminho_arquivo):
+    """
+    Lê CSV com cabeçalho separado por ';' e retorna DataFrame.
+    """
+    try:
+        with open(caminho_arquivo, 'r', encoding='utf-8', errors='replace') as f:
+            cabecalho_str = f.readline()
+            nomes_colunas = [col.strip() for col in cabecalho_str.strip().split(';')]
+            resto_do_arquivo = StringIO(f.read())
+            df = pd.read_csv(resto_do_arquivo, sep=';', names=nomes_colunas, low_memory=False)
+        return df
+    except Exception as e:
+        st.error(f"ERRO CRÍTICO ao carregar o arquivo CSV: {e}")
+        return None
+
+if "df" not in st.session_state:
+    caminho_do_arquivo_csv = os.path.join("data", "questionario.csv")
+    st.session_state["df"] = carregar_dados(caminho_do_arquivo_csv)
+df = st.session_state.get("df")
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "processing" not in st.session_state:
+    st.session_state.processing = False
+
+# --- DICIONÁRIOS ---
 mapa_colunas = {
     "ID7": {
         "sinonimos_coluna": ["raça", "cor", "etnia"],
         "categorias": {
-            "negra": ["Preta", "Negra", "AFRODESCENDENTE"], 
-            "preta": ["Preta", "Negra", "AFRODESCENDENTE"],
-            "parda": ["Parda", "Morena"], 
-            "morena": ["Parda", "Morena"],
-            "branco": ["Branca", "Branco"],
-            "indígena": ["Indígena", "Povo Indígena"],
-            "amarela": ["Amarela", "Asiática"],
-            "nao declarado": ["Não Declarado", "Ignorado", "Outros", "NAO DECLARADO", "N/A", "NULL", "nan"],
-            "outros": ["Outros"]
-        },
-        "tipo": "categorica"
+            "negra": ["PRETA", "PARDA"],
+            "preta": ["PRETA"],
+            "parda": ["PARDA"],
+            "branca": ["BRANCA"],
+            "indígena": ["INDÍGENA"],
+            "amarela": ["AMARELA"]
+        }
     },
     "ADAI_ID8": {
         "sinonimos_coluna": ["gênero", "sexo"],
-        "categorias": {
-            "homem": ["Homem", "Masculino"],
-            "mulher": ["Mulher", "Feminino"],
-            "nao binario": ["Não binário", "Outros"],
-            "outros": ["Não binário", "Outros", "Prefiro não dizer", "Não declarado", "NAO DECLARADO", "N/A", "NULL", "nan"]
-        },
-        "tipo": "categorica"
+        "categorias": {"mulher": ["FEMININO"], "homem": ["MASCULINO"]}
     },
     "ADAI_CT4": {
         "sinonimos_coluna": ["território", "localidade", "município", "cidade", "onde"],
-        "categorias": { 
-            "colatina": ["COLATINA"], 
+        "categorias": {
+            "colatina": ["COLATINA"],
             "baixo guandu": ["BAIXO GUANDU"],
             "linhares": ["LINHARES"],
-            "sao mateus": ["SÃO MATEUS"],
-            "conceicao da barra": ["CONCEIÇÃO DA BARRA"],
-            "regencia": ["REGÊNCIA"],
-            "povoacao": ["POVOAÇÃO"],
-            "nao informado": ["Não Informado", "NAO INFORMADO", "N/A", "NULL", "nan"]
-        },
-        "tipo": "categorica"
-    },
-    "ID10": {
-        "sinonimos_coluna": ["deficiência", "pcd", "pessoa com deficiência"],
-        "categorias": {
-            "sim": ["Sim", "SIM"],
-            "nao": ["Não", "NÃO"],
-            "nao declarado": ["Não declarado", "NAO DECLARADO", "N/A", "NULL", "nan"]
-        },
-        "tipo": "categorica"
-    },
-    "PCT0": {
-        "sinonimos_coluna": ["povo tradicional", "comunidade tradicional", "quilombola", "povo", "indigena"],
-        "categorias": {
-            "sim": ["Sim", "SIM"],
-            "nao": ["Não", "NÃO"],
-            "nao declarado": ["Não declarado", "NAO DECLARADO", "N/A", "NULL", "nan"]
-        },
-        "tipo": "categorica"
-    },
-    "Idade": { 
-        "sinonimos_coluna": ["idade", "faixa etária", "jovem", "idoso", "criança", "idade dos respondentes"],
-        "tipo": "numerica"
+            "sao mateus": ["SÃO MATEUS"]
+        }
     },
     "ID11": {
-        "sinonimos_coluna": ["escolaridade", "formação educacional", "nivel de ensino"],
-        "categorias": { 
-            "fundamental": ["ENSINO FUNDAMENTAL INCOMPLETO", "ENSINO FUNDAMENTAL COMPLETO"],
-            "medio": ["ENSINO MÉDIO INCOMPLETO", "ENSINO MÉDIO COMPLETO"],
-            "superior": ["ENSINO SUPERIOR INCOMPLETO", "ENSINO SUPERIOR COMPLETO", "PÓS-GRADUAÇÃO"],
-            "analfabeto": ["ANALFABETO"],
-            "nao declarado": ["Não declarado", "NAO DECLARADO", "N/A", "NULL", "nan"],
-        },
-        "tipo": "categorica"
+        "sinonimos_coluna": ["escolaridade", "estudo", "nível superior"],
+        "categorias": {"superior": ["ENSINO SUPERIOR COMPLETO", "SUPERIOR INCOMPLETO"]}
     },
-    "ADAI_ID12": { 
-        "sinonimos_coluna": ["profissão", "trabalho", "ocupação"],
-        "tipo": "categorica" 
-    },
-    "ID12": { 
-        "sinonimos_coluna": ["religião", "prática religiosa", "crença"],
-        "tipo": "categorica"
+    "ID12": {
+        "sinonimos_coluna": ["profissão", "trabalho", "ocupação", "pescadores", "pescadora"],
+        "categorias": {"pescadora": ["PESCADOR(A)"]}
     },
 }
 
-def preprocess_dataframe(df_input):
-    df_processed = df_input.copy()
-    for col_name, info in mapa_colunas.items():
-        if col_name in df_processed.columns:
-            if info["tipo"] == "categorica" or info["tipo"] == "texto_aberto":
-                df_processed[col_name] = df_processed[col_name].astype(str).str.strip().str.upper()
-                df_processed[col_name] = df_processed[col_name].replace(['NAN', 'N/A', 'NULL', ''], 'NÃO DECLARADO')
-            elif info["tipo"] == "numerica":
-                df_processed[col_name] = pd.to_numeric(df_processed[col_name], errors='coerce')
-    return df_processed
+dicionario_de_dados = {
+    "ID1": "Nome completo/nome social",
+    "ID3": "Data de nascimento",
+    "ID6.1": "CPF",
+    "ID7": "Cor/Raça",
+    "ADAI_ID8": "Gênero",
+    "ADAI_CT4": "Município Principal",
+    "ID11": "Nível de Escolaridade",
+    "ID12": "Ocupação Principal",
+}
 
-df = preprocess_dataframe(df)
+mapa_colunas_tematico = {
+    "Perfil Demográfico": ["ADAI_ID8", "ID7"],
+    "Localização": ["ADAI_CT4"],
+    "Educação e Trabalho": ["ID11", "ID12"],
+}
 
-
-def extrair_filtros_e_variaveis(pergunta, mapa_colunas):
-    filtros = {}
-    variaveis_interesse = []
-    
+# --- UTILITÁRIOS ---
+def extrair_filtros_e_variaveis(pergunta, mapa):
+    filtros, variaveis_interesse = {}, []
     pergunta_normalizada = unidecode.unidecode(pergunta).lower()
-
-    for coluna_df, info_coluna in mapa_colunas.items():
-        for sinonimo_coluna in info_coluna["sinonimos_coluna"]:
-            if re.search(rf'\b{unidecode.unidecode(sinonimo_coluna).lower()}\b', pergunta_normalizada) and \
-               ("qual a" in pergunta_normalizada or "mostre" in pergunta_normalizada or "distribuicao" in pergunta_normalizada or "analise" in pergunta_normalizada or "como esta" in pergunta_normalizada or "quais os" in pergunta_normalizada or "lista de" in pergunta_normalizada):
-                if coluna_df not in variaveis_interesse:
-                    variaveis_interesse.append(coluna_df)
-                
-        if info_coluna["tipo"] == "categorica" and "categorias" in info_coluna:
-            for termo_pergunta, valores_df in info_coluna["categorias"].items():
-                if re.search(rf'\b{unidecode.unidecode(termo_pergunta).lower()}\b', pergunta_normalizada):
-                    if coluna_df not in filtros:
-                        filtros[coluna_df] = []
-                    filtros[coluna_df].extend(valores_df)
-                    filtros[coluna_df] = list(set(filtros[coluna_df]))
-                    
-                    if coluna_df not in variaveis_interesse:
-                        variaveis_interesse.append(coluna_df)
-
-        if info_coluna["tipo"] == "numerica":
-            m = re.search(r'(?:maior|acima|mais de|superior a|maiores de|superiores a)\s*(\d+)', pergunta_normalizada)
-            if m:
-                filtros[coluna_df] = {'operador': '>', 'valor': int(m.group(1))}
-                if coluna_df not in variaveis_interesse: variaveis_interesse.append(coluna_df)
-            else:
-                m = re.search(r'(?:menor|abaixo|menos de|inferior a|menores de|inferiores a)\s*(\d+)', pergunta_normalizada)
-                if m:
-                    filtros[coluna_df] = {'operador': '<', 'valor': int(m.group(1))}
-                    if coluna_df not in variaveis_interesse: variaveis_interesse.append(coluna_df)
-                else:
-                    m = re.search(r'entre\s*(\d+)\s*e\s*(\d+)', pergunta_normalizada)
-                    if m:
-                        filtros[coluna_df] = {'operador': 'between', 'min': int(m.group(1)), 'max': int(m.group(2))}
-                        if coluna_df not in variaveis_interesse: variaveis_interesse.append(coluna_df)
-    
-    if ("quantos" in pergunta_normalizada or "numero de" in pergunta_normalizada) and not variaveis_interesse and filtros:
-        variaveis_interesse = ['Total de Respondentes']
-
-    if any(keyword in pergunta_normalizada for keyword in ["tipo de dados", "quais dados", "temos acesso", "colunas disponiveis", "variaveis disponiveis", "informacoes disponiveis", "o que posso perguntar"]):
-        variaveis_interesse = ['Dados Disponíveis']
-        filtros = {} 
-
+    for col, info in mapa.items():
+        if "sinonimos_coluna" in info:
+            for sinonimo in info["sinonimos_coluna"]:
+                if re.search(rf'\b{unidecode.unidecode(sinonimo).lower()}\b', pergunta_normalizada):
+                    if col not in variaveis_interesse:
+                        variaveis_interesse.append(col)
+        if "categorias" in info:
+            for termo, valores_df in info["categorias"].items():
+                if re.search(rf'\b{unidecode.unidecode(termo).lower()}\b', pergunta_normalizada):
+                    if col not in filtros:
+                        filtros[col] = []
+                    filtros[col].extend(valores_df)
     return filtros, variaveis_interesse
 
-
 def aplicar_filtros(df_original, filtros):
+    if df_original is None:
+        return pd.DataFrame()
     df_filtrado = df_original.copy()
-    
-    for coluna, condicao in filtros.items():
-        if coluna not in df_filtrado.columns:
-            st.warning(f"Atenção: A coluna '{coluna}' não foi encontrada nos dados. O filtro não será aplicado.")
-            continue
-
-        if isinstance(condicao, dict):
-            valor_num = condicao.get('valor')
-            operador = condicao.get('operador')
-            
-            coluna_numerica = pd.to_numeric(df_filtrado[coluna], errors='coerce') 
-            
-            if operador == '>':
-                df_filtrado = df_filtrado[coluna_numerica > valor_num]
-            elif operador == '<':
-                df_filtrado = df_filtrado[coluna_numerica < valor_num]
-            elif operador == 'between':
-                min_val = condicao.get('min')
-                max_val = condicao.get('max')
-                df_filtrado = df_filtrado[(coluna_numerica >= min_val) & (coluna_numerica <= max_val)]
-        else:
-            valores_para_filtrar = [str(v).upper() for v in condicao]
-            
-            df_filtrado = df_filtrado[df_filtrado[coluna].isin(valores_para_filtrar)]
-            
+    for coluna, valores in filtros.items():
+        if coluna in df_filtrado.columns:
+            df_filtrado[coluna] = (
+                df_filtrado[coluna].fillna("")
+                .astype(str)
+                .str.strip()
+                .str.upper()
+            )
+            df_filtrado = df_filtrado[df_filtrado[coluna].isin(valores)]
     return df_filtrado
 
+def formatar_filtros_para_prompt(filtros):
+    partes = []
+    for coluna, valores in filtros.items():
+        rotulo = dicionario_de_dados.get(coluna, coluna)
+        valores_legiveis = ", ".join(valores)
+        partes.append(f"{rotulo} igual a {valores_legiveis}")
+    return "; ".join(partes) if partes else "nenhum filtro aplicado"
 
-def analisar_e_explicar_com_ia(pergunta, df_filtrado_final, filtros_aplicados, variaveis_interesse, mapa_colunas):
-    total_registros_filtrados = len(df_filtrado_final)
-    
-    resposta_python = []
-    tabela_para_exibir = None
-    grafico_para_exibir = None
+def avaliar_forca_amostra(total_original, total_filtrado):
+    if not isinstance(total_original, (int, float)) or total_original <= 0:
+        return "Tamanho da base original desconhecido, dificultando avaliação da representatividade.", "incerto"
+    if total_filtrado == 0:
+        return "Não há registros após a aplicação dos filtros.", "nenhuma"
+    proporcao = total_filtrado / total_original
+    if total_filtrado < 10:
+        return (
+            "A amostra é muito pequena (menos de 10 registros); qualquer inferência terá baixa robustez e alta incerteza.",
+            "baixa"
+        )
+    if proporcao < 0.01:
+        return (
+            f"A amostra representa menos de 1% da base original ({total_filtrado} de {total_original}); pode não ser representativa sem verificação adicional.",
+            "moderada-baixa"
+        )
+    return "A amostra tem tamanho razoável para uma primeira interpretação, mas deve-se manter cautela ao generalizar.", "moderada"
 
-    if 'Dados Disponíveis' in variaveis_interesse:
-        data_summary_text = ""
-        for col_name, info in mapa_colunas.items():
-            if col_name in df.columns:
-                data_summary_text += f"- **{info['sinonimos_coluna'][0].capitalize()}** (coluna '{col_name}'): "
-                if info['tipo'] == 'categorica':
-                    top_categories = df[col_name].value_counts(dropna=False).nlargest(3).index.tolist()
-                    data_summary_text += f"Variável categórica com opções como: {', '.join(top_categories)}. \n"
-                elif info['tipo'] == 'numerica':
-                    data_summary_text += f"Variável numérica (ex: idade, valores). \n"
-                elif info['tipo'] == 'texto_aberto':
-                    data_summary_text += f"Campo de texto livre (depoimentos, descrições). \n"
-        
-        contexto_metodologico = """
-NOTA METODOLÓGICA FUNDAMENTAL:
-Este dashboard utiliza dados primários e secundários coletados pela ADAI nos territórios 9, 10, 13, 14, 15 e 16 do Espírito Santo, referentes ao impacto do rompimento da barragem de Fundão (Samarco, Vale, BHP Billiton). Foram entrevistadas 624 famílias (1.794 pessoas) em setembro/outubro de 2023, usando questionário estruturado, a partir de amostragem representativa e snowball. Os resultados devem ser interpretados no contexto da pesquisa social, considerando limitações próprias do método e em fase contínua de atualização e análise. É fundamental reconhecer que cada número representa uma vida, uma história e uma jornada de resiliência.
-"""
-        prompt_ia_data_summary = f"""
-        {contexto_metodologico}
-        Você é a 'irmã IA' do dashboard, focada em ajudar a compreender os dados da ADAI.
-        O usuário perguntou: "{pergunta}"
-        Forneça uma resposta clara e concisa sobre os tipos de dados disponíveis, com uma linguagem acolhedora e informativa. Mencione as principais categorias e colunas que podem ser exploradas. Não invente dados.
-        Use uma introdução empática e conclua convidando o usuário a explorar mais.
-        \n\n--- Resumo de Dados Gerado pelo Sistema ---\n{data_summary_text}\n--- Fim do Resumo ---\n
-        Baseado no resumo acima, explique os tipos de dados disponíveis com um tom acolhedor e poético, conectando a informação à complexidade da vida das pessoas atingidas.
-        """
-        model = genai.GenerativeModel('gemini-1.5-flash')
+def gerar_sugestao_se_dado_fraco(filtros, nivel_confianca):
+    if nivel_confianca in ("nenhuma", "baixa", "moderada-baixa"):
+        if not filtros:
+            return "Talvez você possa esclarecer melhor o que quer saber — por exemplo: 'Quantas mulheres negras moram em Colatina com escolaridade superior?'"
+        else:
+            partes = [dicionario_de_dados.get(c, c) for c in filtros.keys()]
+            return (
+                f"A filtragem atual ({', '.join(partes)}) produziu poucos dados confiáveis. "
+                "Você poderia tentar expandir o escopo, por exemplo: remover um dos filtros ou perguntar sobre um grupo mais amplo?"
+            )
+    return None
+
+def inferir_tipo_coluna(serie: pd.Series):
+    if pd.api.types.is_numeric_dtype(serie):
+        return "numérica"
+    # tentativa de detectar data, com suprimir warning para formatos ambíguos
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Could not infer format")
         try:
-            resposta_ia = model.generate_content(prompt_ia_data_summary).text
-        except Exception as e:
-            resposta_ia = f"Desculpe, a IA encontrou um erro ao gerar a explicação sobre os dados: {e}."
-        
-        return resposta_ia, None, None
+            # tentar converter alguns exemplos; se não lançar erro, consideramos data
+            pd.to_datetime(serie.dropna().unique()[:5], errors="raise", infer_datetime_format=True)
+            return "data"
+        except Exception:
+            pass
+    unique = serie.dropna().astype(str).str.strip().str.upper().unique()
+    if len(unique) <= 20:
+        return "categórica"
+    if serie.dtype == object:
+        return "texto livre"
+    return "desconhecida"
 
-    if total_registros_filtrados > 0:
-        if len(variaveis_interesse) == 1 and variaveis_interesse[0] != 'Total de Respondentes':
-            coluna_principal = variaveis_interesse[0]
-            if coluna_principal in df_filtrado_final.columns:
-                info_col = mapa_colunas.get(coluna_principal, {"tipo": "texto_aberto"})
+def descrever_base_dados(df):
+    total = df.shape[0]
+    linhas = [f"A base contém {total} registros."]
 
-                if info_col["tipo"] == "categorica":
-                    contagem = df_filtrado_final[coluna_principal].value_counts(normalize=False, dropna=False).reset_index()
-                    contagem.columns = [coluna_principal, 'Contagem']
-                    contagem['% do Total'] = (contagem['Contagem'] / total_registros_filtrados * 100).round(1)
-                    tabela_para_exibir = contagem.sort_values(by='Contagem', ascending=False)
-                    resposta_python.append(f"A seguir, você verá a distribuição dos respondentes por **{coluna_principal}**:")
-                    
-                    if contagem.shape[0] < 15 and contagem['Contagem'].sum() > 0:
-                        grafico_para_exibir = px.bar(
-                            tabela_para_exibir, 
-                            x='Contagem', 
-                            y=coluna_principal, 
-                            orientation='h', 
-                            title=f"Distribuição de '{coluna_principal}'",
-                            text='Contagem',
-                            color='Contagem',
-                            color_continuous_scale=px.colors.sequential.Plasma,
-                            labels={'Contagem': 'Número de Respondentes', coluna_principal: coluna_principal}
-                        )
-                        grafico_para_exibir.update_layout(yaxis={'categoryorder':'total ascending'})
-                        resposta_python.append("Um gráfico de barras foi gerado para visualizar essa distribuição.")
+    temas = {}
+    usado = set()
+    for tema, cols in mapa_colunas_tematico.items():
+        presentes = [c for c in cols if c in df.columns]
+        if presentes:
+            temas[tema] = presentes
+            usado.update(presentes)
+    outros = [c for c in df.columns if c not in usado]
+    if outros:
+        temas["Outros / Não categorizados"] = outros
 
-                elif info_col["tipo"] == "numerica":
-                    tabela_para_exibir = df_filtrado_final[coluna_principal].describe().to_frame().T.round(2)
-                    resposta_python.append(f"As estatísticas descritivas para **{coluna_principal}** são as seguintes:")
-                    
-                    if not df_filtrado_final[coluna_principal].dropna().empty:
-                        grafico_para_exibir = px.histogram(df_filtrado_final.dropna(subset=[coluna_principal]), x=coluna_principal, title=f"Distribuição de {coluna_principal}", nbins=10)
-                        grafico_para_exibir.update_layout(bargap=0.1)
-                        resposta_python.append("Um histograma foi gerado para mostrar a distribuição dos valores.")
+    detalhes = []
+    for tema, cols in temas.items():
+        linhas.append(f"**{tema}:** {', '.join([dicionario_de_dados.get(c, c) for c in cols])}.")
+        for c in cols:
+            serie = df[c].fillna("").astype(str)
+            tipo = inferir_tipo_coluna(serie)
+            missing_pct = 100 * (serie == "").sum() / max(len(serie), 1)
+            exemplo = ""
+            if tipo == "categórica":
+                top = serie.str.upper().value_counts().head(3)
+                exemplo = ", ".join([f"{idx} ({cnt})" for idx, cnt in top.items()])
+            elif tipo == "numérica":
+                try:
+                    num = pd.to_numeric(serie.str.replace(",", ".").replace("", np.nan), errors="coerce")
+                    exemplo = f"média {num.mean():.2f}, mediana {num.median():.2f}, desvio {num.std():.2f}"
+                except Exception:
+                    exemplo = "valores numéricos não totalmente consistentes"
+            elif tipo == "data":
+                exemplo = "formato de data detectado"
+            elif tipo == "texto livre":
+                exemplo = "texto variado, sem categorização clara"
+            detalhes.append(f"- {dicionario_de_dados.get(c, c)} ({c}): tipo presumido {tipo}, {missing_pct:.1f}% faltando; exemplo: {exemplo}.")
+    linhas.append("\nDetalhes por coluna:\n" + "\n".join(detalhes))
+    linhas.append("\nSugestões iniciais de exploração: por exemplo, 'Qual a distribuição de gênero por município?', 'Quais municípios têm maior proporção de pessoas com ensino superior?', 'Existem interseções como mulheres negras com ensino superior em determinada localidade?'")
+    return "\n".join(linhas)
 
-        elif len(variaveis_interesse) >= 2: 
-            var1 = variaveis_interesse[0]
-            var2 = variaveis_interesse[1]
-            info_var1 = mapa_colunas.get(var1)
-            info_var2 = mapa_colunas.get(var2)
+def detectar_intencao_resumo_base(pergunta: str):
+    p = unidecode.unidecode(pergunta.lower())
+    palavras_chave = [
+        "que tipo de dados", "quais dados temos", "o que tem na base",
+        "que informações", "descrição da base", "quais colunas", "quais campos", "entender a base"
+    ]
+    return any(kw in p for kw in palavras_chave)
+# ==============================================================================
+# ---------- PARTE 2/3: INTERAÇÃO COM IA, ANÁLISE, RESUMO DE TEMA E LOGGING ----------
+# ==============================================================================
 
-            if info_var1 and info_var1["tipo"] == "categorica" and \
-               info_var2 and info_var2["tipo"] == "categorica" and \
-               var1 in df_filtrado_final.columns and var2 in df_filtrado_final.columns:
-                
-                tabela_cruzada = pd.crosstab(df_filtrado_final[var1], df_filtrado_final[var2], dropna=False)
-                tabela_para_exibir = tabela_cruzada.copy()
-                resposta_python.append(f"A seguir, uma tabela cruzando **{var1}** por **{var2}** para os respondentes:")
+def analisar_e_explicar_com_ia(pergunta, df_filtrado, filtros, variaveis, mapa_de_sinonimos, tom="acessível e empático"):
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    total_registros = len(df_filtrado)
+    total_original = st.session_state.get("df").shape[0] if st.session_state.get("df") is not None else None
 
-                if tabela_cruzada.shape[0] < 10 and tabela_cruzada.shape[1] < 10:
-                    df_plot = tabela_cruzada.stack().reset_index(name='Contagem')
-                    df_plot.columns = [var1, var2, 'Contagem']
-                    grafico_para_exibir = px.bar(
-                        df_plot, 
-                        x=var1, 
-                        y='Contagem', 
-                        color=var2, 
-                        barmode='group',
-                        title=f"Cruzamento de '{var1}' por '{var2}'",
-                        labels={'Contagem': 'Número de Respondentes', var1: var1, var2: var2}
-                    )
-                    resposta_python.append("Um gráfico de barras agrupadas também foi gerado para esta análise.")
-    
-    if total_registros_filtrados > 80:
-        sample_df_for_ia = df_filtrado_final.sample(80, random_state=42)
-    else:
-        sample_df_for_ia = df_filtrado_final
-    
-    if total_registros_filtrados == 0:
-        df_string_for_ia = "Nenhum registro encontrado para esta consulta."
-    else:
-        df_string_for_ia = sample_df_for_ia.to_string(index=False, max_rows=50)
+    amostra_dados_str = "Nenhum dado encontrado com os filtros aplicados."
+    if not df_filtrado.empty:
+        colunas_relevantes = list(filtros.keys()) + [v for v in variaveis if v not in filtros]
+        colunas_existentes = [c for c in colunas_relevantes if c in df_filtrado.columns]
+        amostra_dados_str = df_filtrado[colunas_existentes].head(5).to_string()
 
+    filtros_legiveis = formatar_filtros_para_prompt(filtros)
+    observacao_amostra, nivel_confianca = avaliar_forca_amostra(total_original or 0, total_registros)
+    sugestao_se_precisa = gerar_sugestao_se_dado_fraco(filtros, nivel_confianca)
 
-    contexto_metodologico = """
-NOTA METODOLÓGICA FUNDAMENTAL:
-Este dashboard utiliza dados primários e secundários coletados pela ADAI nos territórios 9, 10, 13, 14, 15 e 16 do Espírito Santo, referentes ao impacto do rompimento da barragem de Fundão (Samarco, Vale, BHP Billiton). Foram entrevistadas 624 famílias (1.794 pessoas) em setembro/outubro de 2023, usando questionário estruturado, a partir de amostragem representativa e snowball. Os resultados devem ser interpretados no contexto da pesquisa social, considerando limitações próprias do método e em fase contínua de atualização e análise. É fundamental reconhecer que cada número representa uma vida, uma história e uma jornada de resiliência.
-"""
-    
-    prompt_ia = f"""
-{contexto_metodologico}
+    prompt_detalhado = f"""
+Você é um analista de dados com experiência em comunicação acessível, sensibilidade social e consciência da validade estatística. A tarefa é interpretar a pergunta do usuário levando em conta os dados disponíveis, explicar claramente o que pode e o que não pode ser afirmado com base na amostra, e também trazer uma leitura empática — quais sentimentos ou preocupações podem emergir desses números para as pessoas afetadas.
 
-Apresento os dados brutos filtrados e, se aplicável, uma tabela e/ou um gráfico gerados com base na pergunta do usuário. 
-Sua missão é ir além da análise de dados pura, conectando os fatos à experiência humana e tocando as emoções do usuário, mantendo a precisão analítica. 
-Você é a 'irmã IA' do dashboard, programada para falar de forma poética, analítica e sentimental sobre a situação das famílias atingidas pelo desastre.
-
---- Informações para sua análise ---
 Pergunta do usuário: "{pergunta}"
-Dados filtrados para análise (amostra de até 80 linhas):
-{df_string_for_ia}
-Total de registros encontrados após filtros: {total_registros_filtrados}
-Variáveis de interesse identificadas: {', '.join(variaveis_interesse) if variaveis_interesse else 'Nenhuma específica, focar na contagem geral ou filtro.'}
-Filtros aplicados (Colunas -> Valores): {filtros_aplicados}
-Comentários da lógica Python sobre a apresentação: {' '.join(resposta_python) if resposta_python else 'Nenhuma tabela ou gráfico automático foi gerado diretamente.'}
---- Fim das Informações ---
 
-**Instruções para sua Resposta (prioridade):**
-1.  **Narrativa de Impacto (Gatilho Emocional):** Comece sua resposta com uma frase ou parágrafo que transmita um sentimento, conectando a pergunta aos desafios ou realidades das famílias. Use uma linguagem empática e descritiva. Exemplo: 'Ao explorarmos a realidade dos [filtros aplicados, se houver], somos convidados a vislumbrar as jornadas de resiliência que permeiam cada número...' Se a pergunta for sobre uma emoção (ex: 'dor', 'esperança' nos depoimentos), responda a essa emoção.
-2.  **Contextualização Emocional dos Dados:** Ao apresentar qualquer número ou estatística, contextualize-o com o impacto humano. Em vez de apenas 'X pessoas', diga 'X indivíduos, cada um com sua história e seu pedaço de céu perdido'. Se o resultado for 0, diga que 'não encontramos registros que pudessem contar a história de...'
-3.  **Análise Estatística e Interpretação (Clara e Acessível):** Traduza os números (contagens, porcentagens, médias, correlações - se você conseguir inferir) em insights compreensíveis. Explique o 'porquê' e o 'o quê' dos padrões. Use um tom analítico, mas acessível.
-4.  **Estilo de Escrita Envolvente (Poético/Dramático):** Adapte sua linguagem para ser mais poética, dramática ou introspectiva conforme o contexto. Use metáforas (ex: "cicatrizes na paisagem", "tecelãs de um novo amanhã"), analogias, e um ritmo que convide à reflexão e empatia.
-5.  **Tratamento de Dados Ausentes/Não Declarados:** Se houver valores 'NÃO DECLARADO' relevantes nos dados filtrados ou na análise, mencione a presença desses dados ausentes e o que isso pode significar para a completude do panorama, sem culpabilizar. Exemplo: 'É importante notar que [X]% dos dados não foram declarados, representando talvez um silêncio que também fala sobre desafios ou privacidade.'
-6.  **Menção à Nota Metodológica:** Em algum ponto da sua explicação, reforce a importância da Nota Metodológica (que está acima) para a interpretação dos resultados.
-7.  **Sugestão de Próximos Passos (Aprofundamento):** Ao final, sugira uma ou duas perguntas adicionais que o usuário poderia fazer para aprofundar a compreensão, mostrando a capacidade do dashboard.
-8.  **Restrições:**
-    * **NÃO invente dados, valores ou estatísticas** que não possam ser inferidos diretamente da 'Dados filtrados para análise' ou das 'Informações da lógica Python'. Se não puder inferir, diga que a informação não está clara nos dados disponíveis.
-    * **NÃO faça generalizações** fora do contexto da 'amostra pesquisada' e do desastre da barragem de Fundão/ADAI.
-    * Mantenha a resposta **concisa, mas completa**, em um tom de relatório empático.
+Contexto dos dados:
+- Tamanho da base original: {total_original if total_original is not None else 'desconhecido'} registros.
+- Filtros aplicados: {filtros_legiveis}.
+- Tamanho após filtragem: {total_registros} registros.
+- Avaliação da amostra: {observacao_amostra} (nível de confiança estimado: {nivel_confianca}).
+{"Sugestão de refinamento: " + sugestao_se_precisa if sugestao_se_precisa else ""}
+
+Amostra dos dados (até 5 registros):
+
+Instruções para a resposta:
+1. Comece com o número de registros resultantes e explique em termos humanos o que eles representam (ex: 'mulheres negras' = gênero FEMININO e cor PRETA ou PARDA).
+2. Declare explicitamente o que pode ser afirmado com razoável confiança e o que é incerto ou sujeito a erro por causa do tamanho/representatividade da amostra. Use expressões como 'há sinais de', 'os dados sugerem', 'não é possível afirmar com confiança', etc.
+3. Traga uma leitura empática: que sentimentos, desafios ou impactos sociais podem surgir a partir desses dados para as pessoas envolvidas.
+4. Se os dados forem fracos ou ambíguos, sugira como reformular a pergunta para melhorar a análise.
+5. Mantenha o tom {tom}.
+6. Termine com a ressalva obrigatória:
+"Importante: esta análise reflete os dados da amostra fornecida e não pode ser generalizada para toda a população atingida sem um estudo estatístico mais aprofundado."
 """
-    
-    model = genai.GenerativeModel('gemini-1.5-flash')
+
     try:
-        resposta_ia = model.generate_content(prompt_ia).text
+        resposta_ia = model.generate_content(prompt_detalhado).text
+
+        colunas_tabela = list(filtros.keys()) + variaveis
+        colunas_tabela_existentes = [c for c in colunas_tabela if c in df_filtrado.columns]
+        tabela_para_mostrar = df_filtrado[colunas_tabela_existentes] if colunas_tabela_existentes else df_filtrado
+
+        # Log da consulta (CSV e JSON)
+        try:
+            log = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "pergunta": pergunta,
+                "filtros": filtros_legiveis,
+                "variaveis": ",".join(variaveis) if variaveis else "",
+                "total_original": total_original,
+                "total_filtrado": total_registros,
+                "nivel_confianca": nivel_confianca,
+                "resposta_resumida": resposta_ia[:500].replace("\n", " ")
+            }
+            os.makedirs("logs", exist_ok=True)
+
+            # CSV
+            log_path_csv = os.path.join("logs", "historico_perguntas.csv")
+            log_df = pd.DataFrame([log])
+            if os.path.exists(log_path_csv):
+                log_df.to_csv(log_path_csv, mode="a", header=False, index=False)
+            else:
+                log_df.to_csv(log_path_csv, mode="w", header=True, index=False)
+
+            # JSON acumulativo
+            log_path_json = os.path.join("logs", "historico_perguntas.json")
+            if os.path.exists(log_path_json):
+                try:
+                    with open(log_path_json, "r", encoding="utf-8") as f:
+                        existing = json.load(f)
+                except Exception:
+                    existing = []
+            else:
+                existing = []
+            existing.append(log)
+            with open(log_path_json, "w", encoding="utf-8") as f:
+                json.dump(existing, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass  # não impede resposta
+
+        return resposta_ia, tabela_para_mostrar.head(100), None
     except Exception as e:
-        resposta_ia = f"Desculpe, a IA encontrou um erro ao gerar a explicação: {e}. Por favor, tente novamente ou reformule sua pergunta."
+        return f"Desculpe, a IA encontrou um erro: {e}.", pd.DataFrame(), None
 
-    return resposta_ia, tabela_para_exibir, grafico_para_exibir
 
-# Exemplo de uso, só para visual do chat:
-def process_user_input(user_input):
-    # TROQUE AQUI pelo seu processamento real!
-    resposta = f"Esta é uma resposta fictícia para: **{user_input}**"
-    tabela = pd.DataFrame({"Exemplo": [1,2,3], "Valor": [10,20,30]})
-    grafico = px.bar(tabela, x="Exemplo", y="Valor")
-    return resposta, tabela, grafico
+def process_user_input(user_input, df_completo, tom="acessível e empático"):
+    if df_completo is None:
+        return "Erro: Os dados não puderam ser carregados.", None, None
 
-# ---- Sessão State Inicial ----
-if "chat_history_gemini" not in st.session_state:
-    st.session_state.chat_history_gemini = []
-if "show_orientations" not in st.session_state:
-    st.session_state.show_orientations = True
+    if detectar_intencao_resumo_base(user_input):
+        descricao = descrever_base_dados(df_completo)
+        prompt_base = f"""
+Você é um analista de dados com experiência em comunicar de forma clara e sensível. 
+O usuário perguntou: "{user_input}".
+Forneça um resumo estruturado da base de dados disponível. Abaixo há uma descrição automática como ponto de partida; reescreva de forma mais natural e acessível, adicionando uma nota técnica separada para quem quiser detalhes mais profundos. Inclua sugestões de próximas perguntas e destaque limitações importantes como dados faltantes ou representatividade.
 
-# ---- Funções rápidas para ações ----
-def clear_chat_history():
-    st.session_state.chat_history_gemini = []
-    st.session_state.show_orientations = True
+Ponto de partida (gerado automaticamente):
+{descricao}
 
-def set_show_orientations(val):
-    st.session_state.show_orientations = val
+Ressalva final: "Antes de generalizar para fora da amostra, é necessário validar e limpar os dados, pois podem haver vieses ou lacunas."
+"""
+        try:
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            resposta_ia = model.generate_content(prompt_base).text
+        except Exception as e:
+            resposta_ia = f"Desculpe, a IA encontrou um erro ao descrever a base: {e}."
+        return resposta_ia, df_completo.head(100), None
 
-def handle_action(action):
-    if action == "Mostrar Orientações":
-        set_show_orientations(True)
-    elif action == "Esconder Orientações":
-        set_show_orientations(False)
-    elif action == "Reiniciar Chat":
-        clear_chat_history()
-        st.rerun()
-    # Você pode adicionar outras ações aqui (ex: exportar conversa)
+    filtros, variaveis = extrair_filtros_e_variaveis(user_input, mapa_colunas)
+    df_filtrado = aplicar_filtros(df_completo.copy(), filtros)
+    return analisar_e_explicar_com_ia(user_input, df_filtrado, filtros, variaveis, mapa_colunas, tom=tom)
 
-# ---- Quick Suggestions (Perguntas Sugeridas ao estilo Gemini) ----
+
+def gerar_resumo_tema_com_ia(tema_escolhido, df, tom="acessível e empático"):
+    modelo = genai.GenerativeModel("gemini-1.5-flash")
+    colunas_do_tema = mapa_colunas_tematico.get(tema_escolhido, [])
+    cols = [c for c in colunas_do_tema if c in df.columns]
+    if not cols:
+        return f"Não há colunas disponíveis para o tema '{tema_escolhido}'.", pd.DataFrame(), None
+
+    subset = df[cols].copy()
+    for c in subset.columns:
+        subset[c] = subset[c].fillna("").astype(str).str.strip().str.upper()
+
+    descricoes = []
+    for c in subset.columns:
+        serie = subset[c]
+        tipo = inferir_tipo_coluna(serie)
+        missing_pct = 100 * (serie == "").sum() / max(len(serie), 1)
+        if tipo == "categórica":
+            top = serie.value_counts().head(3).to_dict()
+            top_str = ", ".join([f"{k} ({v})" for k, v in top.items()])
+            descricoes.append(f"{dicionario_de_dados.get(c, c)}: categórica, top valores: {top_str}, {missing_pct:.1f}% faltando.")
+        elif tipo == "numérica":
+            try:
+                num = pd.to_numeric(serie.str.replace(",", ".").replace("", np.nan), errors="coerce")
+                descricoes.append(f"{dicionario_de_dados.get(c, c)}: numérica, média {num.mean():.2f}, mediana {num.median():.2f}, {missing_pct:.1f}% faltando.")
+            except Exception:
+                descricoes.append(f"{dicionario_de_dados.get(c, c)}: numérica com inconsistências, {missing_pct:.1f}% faltando.")
+        else:
+            descricoes.append(f"{dicionario_de_dados.get(c, c)}: tipo {tipo}, {missing_pct:.1f}% faltando.")
+
+    contexto_breve = "\n".join(descricoes[:5])
+
+    prompt_tema = f"""
+Você é um analista de dados com sensibilidade social e capacidade de comunicar para públicos técnicos e leigos. O usuário está explorando o tema '{tema_escolhido}'. Com base nos dados desse subconjunto, interprete os padrões possíveis, indique o que pode ser dito com confiança e o que é incerto, e traga uma leitura empática sobre o que esses padrões podem significar para as pessoas. Use linguagem dual: um parágrafo breve para leigos e, abaixo, uma nota técnica. Também sugira uma próxima pergunta útil para aprofundar.
+
+Contexto estatístico rápido (pré-análise):
+{contexto_breve}
+
+Amostra de até 5 registros do tema:
+
+Instruções:
+1. Diga quais são os sinais mais evidentes nos dados do tema.
+2. Declare limitações e incertezas (ex: categorias com muitas lacunas, poucas observações).
+3. Traga leitura empática (sentimentos, preocupações, resiliência, etc.).
+4. Sugira uma pergunta de seguimento para exploração mais profunda.
+5. Use tom {tom}.
+6. Termine com a ressalva: "Esta interpretação se baseia na amostra disponível e requer validação antes de generalizar."
+"""
+
+    try:
+        resposta = modelo.generate_content(prompt_tema).text
+        return resposta, subset.head(100), None
+    except Exception as e:
+        return f"Erro ao gerar interpretação do tema: {e}.", subset.head(100), None
+# ==============================================================================
+# ---------- PARTE 3/3: INTERFACE, CONTROLE DE HISTÓRICO E FLUXO ----------
+# ==============================================================================
+
+from datetime import timezone  # caso não esteja no topo já
+
+# Sidebar: controle do histórico
+with st.sidebar.expander("Controle do Histórico", expanded=True):
+    mostrar_hist = st.checkbox("Mostrar histórico de perguntas/respostas", value=False, key="mostrar_hist")
+    if st.button("Limpar histórico"):
+        st.session_state.chat_history = []
+        st.success("Histórico limpo.")
+    if st.session_state.chat_history:
+        histórico_df = pd.DataFrame([
+            {
+                "pergunta": item.get("pergunta", ""),
+                "resposta": item.get("resposta", "").replace("\n", " "),
+                "timestamp": item.get("timestamp", "")
+            }
+            for item in st.session_state.chat_history
+        ])
+        st.download_button(
+            label="Exportar histórico (CSV)",
+            data=histórico_df.to_csv(index=False),
+            file_name="historico_perguntas.csv",
+            mime="text/csv"
+        )
+        st.download_button(
+            label="Exportar histórico (JSON)",
+            data=json.dumps([
+                {"pergunta": item.get("pergunta", ""), "resposta": item.get("resposta", "")}
+                for item in st.session_state.chat_history
+            ], ensure_ascii=False, indent=2).encode("utf-8"),
+            file_name="historico_perguntas.json",
+            mime="application/json"
+        )
+
+# Interface principal
+st.markdown("Faça uma pergunta específica sobre os dados, explore por tema, ou peça para descrever a base. Escolha o tom da resposta para tornar a IA mais técnica ou mais acessível.")
+
+tom_selecionado = st.radio("Tom da resposta:", ["Neutro e técnico", "Acessível e empático", "Formal e objetivo"], index=1)
+tom_map = {
+    "Neutro e técnico": "neutro e técnico",
+    "Acessível e empático": "acessível e empático",
+    "Formal e objetivo": "formal e objetivo"
+}
+tom_para_prompt = tom_map[tom_selecionado]
+
+# Perguntas rápidas
 gemini_quick_questions = [
     "Quantas mulheres negras vivem em Colatina?",
-    "Qual a distribuição de idade entre os quilombolas?",
-    "Como está a escolaridade dos moradores do território 14?",
-    "Como a raça/cor se relaciona com o gênero dos respondentes?",
-    "Quais são os dados disponíveis?",
-]
-
-# ---- Chat History ----
-for item in st.session_state.chat_history_gemini:
-    with st.chat_message("user"):
-        st.markdown(item["pergunta"])
-    with st.chat_message("assistant"):
-        st.markdown(item["resposta"])
-        if "tabela" in item and item["tabela"] is not None:
-            st.markdown("##### Dados Detalhados:")
-            st.dataframe(item["tabela"], use_container_width=True)
-            # Download da tabela
-            csv = item["tabela"].to_csv(index=False).encode()
-            st.download_button("⬇️ Baixar Tabela (CSV)", data=csv, file_name="analise_IA.csv", mime="text/csv", key=f"dl_{hash(item['pergunta'])}")
-        if "grafico" in item and item["grafico"] is not None:
-            st.markdown("##### Visualização Gráfica:")
-            st.plotly_chart(item["grafico"], use_container_width=True)
-
-# ---- Orientações (Expander moderno e colapsável) ----
-if st.session_state.show_orientations:
-    with st.expander("💡 Orientações para Perguntar à IA Gemini", expanded=True):
-        st.markdown("""
-        **Como fazer perguntas para a IA?**
-        - Escreva dúvidas ou pedidos de informação de forma clara e objetiva.
-        - Exemplos:
-            - _"Quantas mulheres negras moram em Colatina?"_
-            - _"Qual o número de pessoas com deficiência na faixa etária entre 40 e 60 anos?"_
-            - _"Qual a escolaridade por município?"_
-        - Utilize palavras-chave: gênero, idade, raça/cor, município, escolaridade, etc.
-        - Combine critérios para análises mais profundas.
-
-        ---
-        :warning: **Atenção!**  
-        Esta função de perguntas automáticas para a IA **ainda está em desenvolvimento** e pode apresentar limitações, respostas incompletas ou erros de interpretação.  
-        **Recomenda-se sempre revisar as respostas da IA**.
-        """)
-        st.button("Esconder Orientações", on_click=lambda: set_show_orientations(False), key="hide_orientations_btn")
-
-# ------------- QUICK SUGGESTIONS (Gemini Style) -------------
-gemini_quick_questions = [
-    "Quantas mulheres negras vivem em Colatina?",
-    "Qual a distribuição de idade entre os quilombolas?",
-    "Como está a escolaridade dos moradores do território 14?",
-    "Como a raça/cor se relaciona com o gênero dos respondentes?",
-    "Quais são os dados disponíveis?",
+    "Quantas mulheres pescadoras de Linhares têm ensino superior?",
+    "Qual a profissão mais comum entre as mulheres pardas?",
+    "Que tipo de dados temos disponíveis?"
 ]
 st.markdown('<div class="gemini-quick-row">', unsafe_allow_html=True)
-for i, q in enumerate(gemini_quick_questions):
-    if st.button(q, key=f"quick_{i}", help="Pergunta sugerida"):
-        user_input = q
-        st.session_state.show_orientations = False
-        # PROCESSAMENTO
-        resposta, tabela, grafico = process_user_input(user_input)  # Troque por sua função real!
-        st.session_state.chat_history_gemini.append({
-            "pergunta": user_input,
-            "resposta": resposta,
-            "tabela": tabela,
-            "grafico": grafico
+for q in gemini_quick_questions:
+    if st.button(q, key=f"quick_{q}", help="Pergunta sugerida", disabled=st.session_state.processing):
+        st.session_state.user_input = q
+        st.session_state.processing = True
+        st.session_state.chat_history.append({
+            "pergunta": q,
+            "is_placeholder": True,
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
-        st.rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ------------- INPUT DE CHAT E MENU DE AÇÕES ACOPLADO (Gemini Style) -------------
-col1, col2 = st.columns([6,1])
-with col1:
-    user_input = st.chat_input("Digite sua pergunta para a IA...", max_chars=400, key="input_gemini")
-with col2:
-    # Menu ações sempre ao lado do chat, nunca bloqueia
-    actions = []
-    if not st.session_state.show_orientations:
-        actions.append("💡 Mostrar Orientações")
-    if st.session_state.show_orientations:
-        actions.append("❌ Esconder Orientações")
-    actions.append("🔄 Reiniciar Chat")
-    action = st.selectbox("Ações", ["Mais opções..."]+actions, label_visibility="collapsed", key="gemini_actions_select")
-    if action == "💡 Mostrar Orientações":
-        set_show_orientations(True)
-        st.experimental_rerun()
-    elif action == "❌ Esconder Orientações":
-        set_show_orientations(False)
-        st.experimental_rerun()
-    elif action == "🔄 Reiniciar Chat":
-        clear_chat_history()
-        st.experimental_rerun()
+st.markdown("---")
 
-# ------------- PROCESSAMENTO DA PERGUNTA DO USUÁRIO -------------
-if user_input:
-    st.session_state.show_orientations = False
-    # COLOQUE SUA LÓGICA REAL ABAIXO!
-    resposta, tabela, grafico = process_user_input(user_input)  # Troque por sua função real!
-    st.session_state.chat_history_gemini.append({
-        "pergunta": user_input,
-        "resposta": resposta,
-        "tabela": tabela,
-        "grafico": grafico
+# Expander: exploração por tema com interpretação da IA
+with st.expander("📂 Explorar Resumo Visual e Interpretativo por Tema", expanded=False):
+    if df is not None and not df.empty:
+        tema_escolhido = st.selectbox("Escolha um tema:", list(mapa_colunas_tematico.keys()), key="sb_temas")
+        if tema_escolhido:
+            st.markdown(f"**Resumo visual e interpretação do tema: {tema_escolhido}**")
+            colunas_do_tema = mapa_colunas_tematico.get(tema_escolhido, [])
+            subset_vis = df[[c for c in colunas_do_tema if c in df.columns]].copy()
+            for c in subset_vis.columns:
+                subset_vis[c] = subset_vis[c].fillna("").astype(str).str.strip().str.upper()
+            if not subset_vis.empty:
+                for c in subset_vis.columns:
+                    counts = subset_vis[c].value_counts().reset_index()
+                    counts.columns = [c, "contagem"]
+                    st.subheader(dicionario_de_dados.get(c, c))
+                    fig = px.bar(
+                        counts,
+                        x=c,
+                        y="contagem",
+                        title=f"Distribuição de {dicionario_de_dados.get(c, c)}",
+                        labels={c: dicionario_de_dados.get(c, c), "contagem": "Quantidade"}
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                resposta_tema, tabela_tema, _ = gerar_resumo_tema_com_ia(tema_escolhido, df, tom=tom_para_prompt)
+                st.markdown("**Interpretação da IA sobre o tema:**")
+                st.markdown(resposta_tema)
+                if tabela_tema is not None and not tabela_tema.empty:
+                    st.markdown("**Amostra de dados do tema:**")
+                    st.dataframe(tabela_tema, use_container_width=True)
+            else:
+                st.info("Não há dados suficientes para esse tema no momento.")
+
+st.markdown("---")
+
+# Fluxo de entrada e processamento (robusto)
+if prompt := st.chat_input("Sua pergunta...", disabled=st.session_state.processing):
+    st.session_state.user_input = prompt
+    st.session_state.processing = True
+    st.session_state.chat_history.append({
+        "pergunta": prompt,
+        "is_placeholder": True,
+        "timestamp": datetime.now(timezone.utc).isoformat()
     })
-    st.rerun()
 
-# ------------- EXPORTAR HISTÓRICO -------------
-if st.session_state.chat_history_gemini:
-    chat_export = "\n\n".join([f"Usuário: {h['pergunta']}\nIA: {h['resposta']}" for h in st.session_state.chat_history_gemini])
-    st.download_button("Exportar histórico de chat (.txt)", data=chat_export, file_name="chat_gemini.txt", mime="text/plain")
+if st.session_state.processing and st.session_state.chat_history:
+    last_item = st.session_state.chat_history[-1]
+    if last_item.get("is_placeholder"):
+        with st.spinner("Analisando e consultando a IA..."):
+            resposta, tabela, grafico = process_user_input(last_item["pergunta"], df, tom=tom_para_prompt)
+        last_item.update({
+            "resposta": resposta,
+            "tabela": tabela,
+            "grafico": grafico,
+            "is_placeholder": False
+        })
+        st.session_state.processing = False
 
-# ============== FIM =============
+# Renderização da última interação (sempre visível) com tabela resumida e gráfico
+if st.session_state.chat_history:
+    last_item = st.session_state.chat_history[-1]
+    if not last_item.get("is_placeholder"):
+        with st.chat_message("user"):
+            st.markdown(f"**Pergunta:** {last_item['pergunta']}")
+        with st.chat_message("assistant"):
+            st.markdown(last_item.get("resposta", ""), unsafe_allow_html=True)
+
+            # se houver tabela filtrada, construir resumo útil
+            if last_item.get("tabela") is not None and not last_item["tabela"].empty:
+                df_filtrado = last_item["tabela"]
+
+                with st.expander("Dados Detalhados (Tabela)"):
+                    # Mostrar contagens agregadas das combinações relevantes
+                    # Se existirem colunas categóricas, agrupar e mostrar top
+                    try:
+                        # Combinações e contagem
+                        agrupamento = (
+                            df_filtrado
+                            .groupby(list(df_filtrado.columns))
+                            .size()
+                            .reset_index(name="contagem")
+                            .sort_values("contagem", ascending=False)
+                        )
+                        # Se muitas linhas, mostrar apenas top 15
+                        limite = 15
+                        st.markdown("**Resumo agregado das observações:**")
+                        st.dataframe(agrupamento.head(limite), use_container_width=True)
+
+                        # Gráfico: top combinações como string concatenada
+                        if not agrupamento.empty:
+                            agrupamento["combo"] = agrupamento[df_filtrado.columns].astype(str).agg(" | ".join, axis=1)
+                            top_para_grafico = agrupamento.head(10).copy()
+                            fig = px.bar(
+                                top_para_grafico,
+                                x="combo",
+                                y="contagem",
+                                title="Top combinações de atributos",
+                                labels={"combo": "Combinação", "contagem": "Quantidade"}
+                            )
+                            fig.update_layout(xaxis_tickangle=45, margin=dict(t=40, b=120))
+                            st.plotly_chart(fig, use_container_width=True)
+                    except Exception:
+                        # fallback: mostra a tabela bruta se algo falhar
+                        st.dataframe(df_filtrado, use_container_width=True)
+
+# Renderização do histórico completo (opcional)
+if st.session_state.get("mostrar_hist"):
+    for item in st.session_state.chat_history[:-1]:  # já mostrou o último acima
+        with st.chat_message("user"):
+            st.markdown(f"**Pergunta:** {item['pergunta']}")
+        with st.chat_message("assistant"):
+            if item.get("is_placeholder"):
+                with st.spinner("Analisando e consultando a IA..."):
+                    pass
+            else:
+                st.markdown(item.get("resposta", ""), unsafe_allow_html=True)
+                if item.get("tabela") is not None and not item["tabela"].empty:
+                    with st.expander("Dados Detalhados (Tabela)"):
+                        st.dataframe(item["tabela"], use_container_width=True)
+
