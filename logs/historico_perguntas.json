@@ -1,0 +1,62 @@
+[
+  {
+    "timestamp": "2025-08-02T02:05:43.268194",
+    "pergunta": "Quantas mulheres pescadoras de Linhares têm ensino superior?",
+    "filtros": "Município Principal igual a LINHARES; Nível de Escolaridade igual a ENSINO SUPERIOR COMPLETO, SUPERIOR INCOMPLETO",
+    "variaveis": "",
+    "total_original": 624,
+    "total_filtrado": 7,
+    "nivel_confianca": "baixa",
+    "resposta_resumida": "A análise dos dados disponíveis indica que apenas 7 mulheres em Linhares, dentro da nossa base de dados de 624 registros, declararam ter concluído ou cursado o ensino superior.  Isso significa que, entre as mulheres pescadoras incluídas na nossa pesquisa,  um número muito pequeno possui formação em nível superior.  Considerando que \"ensino superior\" inclui tanto o ensino superior completo quanto o incompleto, esses 7 registros representam mulheres que iniciaram ou terminaram uma graduação.  **O "
+  },
+  {
+    "timestamp": "2025-08-02T02:06:32.085787",
+    "pergunta": "quantos acessam o bolsa familia?",
+    "filtros": "nenhum filtro aplicado",
+    "variaveis": "",
+    "total_original": 624,
+    "total_filtrado": 624,
+    "nivel_confianca": "moderada",
+    "resposta_resumida": "A análise da amostra fornecida mostra que, **dos 624 registros analisados, todos eles se referem a pessoas que acessam o Bolsa Família.**  Isso significa que, dentro dessa amostra específica, 100% dos indivíduos registrados recebem o benefício.  **O que podemos afirmar com razoável confiança:**  * **Dentro da amostra analisada, o acesso ao Bolsa Família é universal.**  Todos os 624 registros representam pessoas beneficiárias do programa.   **O que é incerto ou sujeito a erro:**  * **Não é possív"
+  },
+  {
+    "timestamp": "2025-08-02T02:09:25.378011+00:00",
+    "pergunta": "Quantas mulheres negras vivem em Colatina?",
+    "filtros": "Município Principal igual a COLATINA",
+    "variaveis": "",
+    "total_original": 624,
+    "total_filtrado": 115,
+    "nivel_confianca": "moderada",
+    "resposta_resumida": "Após analisarmos os dados fornecidos, encontramos 115 registros de pessoas que moram em Colatina e se identificam como mulheres negras.  Para fins desta análise, \"mulheres negras\" inclui mulheres que se declararam Pretas ou Pardas, de acordo com a classificação do IBGE.  **O que podemos afirmar com razoável confiança:**  Os dados sugerem que há pelo menos 115 mulheres negras morando em Colatina.  Essa informação, baseada na amostra analisada, nos dá uma ideia inicial do tamanho dessa população n"
+  },
+  {
+    "timestamp": "2025-08-02T02:09:35.505587+00:00",
+    "pergunta": "Quantas mulheres pescadoras de Linhares têm ensino superior?",
+    "filtros": "Município Principal igual a LINHARES; Nível de Escolaridade igual a ENSINO SUPERIOR COMPLETO, SUPERIOR INCOMPLETO",
+    "variaveis": "",
+    "total_original": 624,
+    "total_filtrado": 7,
+    "nivel_confianca": "baixa",
+    "resposta_resumida": "Olá!  A partir dos dados fornecidos, encontramos apenas 7 registros de mulheres em Linhares com ensino superior completo ou incompleto que se declaram pescadoras.  Isso significa que, dentre as 624 mulheres pescadoras inicialmente consideradas na base de dados, apenas 7 se encaixam nesse perfil específico.  **O que podemos afirmar com razoável confiança:**  Os dados sugerem que a proporção de mulheres pescadoras em Linhares com ensino superior completo ou incompleto é muito baixa. Há sinais de q"
+  },
+  {
+    "timestamp": "2025-08-02T02:12:56.978695+00:00",
+    "pergunta": "Quantas mulheres pescadoras de Linhares têm ensino superior?",
+    "filtros": "Município Principal igual a LINHARES; Nível de Escolaridade igual a ENSINO SUPERIOR COMPLETO, SUPERIOR INCOMPLETO",
+    "variaveis": "",
+    "total_original": 624,
+    "total_filtrado": 7,
+    "nivel_confianca": "baixa",
+    "resposta_resumida": "A análise da base de dados mostrou que apenas 7 mulheres pescadoras de Linhares possuem ensino superior completo ou incompleto.  Isso significa que, entre as 624 mulheres pescadoras inicialmente registradas, apenas 7 se encaixam nesse perfil específico (mulheres que se declararam como pescadoras, moradoras de Linhares e com nível de ensino superior completo ou incompleto).   **O que podemos afirmar com razoável confiança:**  Há sinais de que a proporção de mulheres pescadoras de Linhares com ens"
+  },
+  {
+    "timestamp": "2025-08-02T02:17:08.367105+00:00",
+    "pergunta": "Qual a profissão mais comum entre as mulheres pardas?",
+    "filtros": "nenhum filtro aplicado",
+    "variaveis": "ID12",
+    "total_original": 624,
+    "total_filtrado": 624,
+    "nivel_confianca": "moderada",
+    "resposta_resumida": "Olá! Recebi sua pergunta: \"Qual a profissão mais comum entre as mulheres pardas?\".  Analisamos 624 registros, representando mulheres que se autodeclararam pardas.  É importante lembrar que esses 624 registros são apenas uma amostra, e não representam a totalidade das mulheres pardas.  Pensando em termos humanos, cada um desses 624 registros corresponde a uma história de vida, um conjunto de experiências e uma trajetória profissional única.  Infelizmente, você não forneceu os dados propriamente d"
+  }
+]
